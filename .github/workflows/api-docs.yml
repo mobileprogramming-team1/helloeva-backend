@@ -1,0 +1,44 @@
+# api/openapi.yaml 을 Swagger 화면으로 GitHub Pages에 올립니다.
+# 웹사이트에는 api/index.html, api/openapi.yaml 두 파일만 올라갑니다.
+name: api-docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/openapi.yaml'
+      - 'api/index.html'
+      - '.github/workflows/api-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: 공개할 파일만 모으기
+        run: |
+          mkdir -p _site
+          cp api/index.html api/openapi.yaml _site/
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
