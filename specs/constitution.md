@@ -45,12 +45,12 @@ com.helloeva
 - Service는 흐름만 조합하고, 실제 조회/변경은 `XxxReader`, `XxxCreator`, `XxxUpdater`, `XxxDeleter`에 둡니다.
 - 도메인 규칙(상태 전이, 검증)은 엔티티 메서드에 둡니다.
 - 외부 서비스(AI, Kakao, 스토리지)는 `integration/`의 인터페이스 뒤에 숨깁니다. 도메인은 구현체를 모릅니다.
-- 오래 걸리는 작업(AI 평가 등)은 트랜잭션 커밋 후 이벤트 → 가상 스레드 비동기로 처리합니다.
+- AI 작업(질문 생성, 음성 인식·합성, 평가)도 요청 안에서 동기로 처리합니다. 상태 관리·비동기 처리는 두지 않습니다 (전공 프로젝트 규모).
 
 ## 4. 데이터
 
 - 스키마 변경은 **Flyway 마이그레이션으로만** 합니다 (`ddl-auto: validate`). 파일명: `V{n}__{설명}.sql`.
-- 탈퇴 등 삭제는 기본적으로 soft delete (`deleted_at`) 입니다. 예외는 plan.md에 이유를 씁니다.
+- 회원 탈퇴는 사용자 상태만 '탈퇴'로 바꾸고 데이터는 남깁니다 (001). 그 밖의 삭제 정책은 해당 기능 plan.md에 씁니다.
 
 ## 5. 테스트
 
@@ -63,14 +63,14 @@ com.helloeva
 ## 형상 관리
 
 - PR과 이슈는 쓰지 않고 **main에 바로 커밋**합니다.
-- 커밋 메시지는 `<type>: <요약>` + 개조식 본문입니다 (`spec`/`feat`/`fix`/`refactor`/`test`/`chore`/`docs`).
+- 커밋 메시지는 `<type>: <요약>` + 개조식 본문입니다 (`feat`/`fix`/`docs`/`refactor`/`test`/`chore` 등 Conventional Commits 기본 타입, 문서 변경은 `docs`).
 - 커밋에 AI 작성 표시(`Co-Authored-By` 등)를 붙이지 않습니다.
 
 ## 6. 보안과 설정
 
 - 비밀 값(키, 비밀번호, 토큰)은 **절대 커밋하지 않습니다**. 설정 파일에는 `${ENV_VAR}` 자리표시자만 둡니다.
 - 필요한 환경변수는 `.env.example`에 이름만 적습니다.
-- 인증은 JWT(Access/Refresh)를 씁니다. 컨트롤러에서는 `@LoginUser userId: Long`으로 사용자를 받습니다.
+- 인증은 JWT 액세스 토큰 하나만 씁니다 (유효 기간 30일, 리프레시 토큰 없음). 컨트롤러에서는 `@LoginUser userId: Long`으로 사용자를 받습니다.
 
 ## 7. 기술 스택 (확정)
 

@@ -2,30 +2,499 @@ openapi: 3.1.0
 info:
   title: Hello Eva API
   description: |
-    OPIc 말하기 연습 앱 Hello Eva의 API 계약서입니다.
-    작성 규칙은 api/README.md 를 따릅니다.
-    각 기능의 경로(paths)는 해당 스펙(specs/NNN-*/spec.md)이 Approved 된 뒤 plan 단계에서 추가합니다.
+    OPIc 말하기 연습 앱 Hello Eva의 API 명세입니다.
+
+    ## 화면별 API 호출 순서
+
+    ### 1. 로그인
+    1. `POST /auth/login` — 카카오 토큰으로 로그인하고 `accessToken`을 받는다
+    2. `isNewUser`가 true면 온보딩 화면으로 간다
+
+    ### 2. 홈 (대화 목록)
+    1. `GET /conversations` — 내 대화 목록을 받는다 (`?status=IN_PROGRESS` / `COMPLETED` 필터)
+
+    ### 3. 새 대화 만들기
+    1. `GET /background-survey-steps` — 설문 문항과 선택지를 받는다
+    2. 사용자가 목표 등급과 설문을 고른다
+    3. `POST /conversations` — 대화를 만들고 `conversationId`를 받는다 (15문항 질문·음성을 만드느라 시간이 조금 걸림)
+    4. `GET /conversations/{conversationId}` — 15문항 전체(질문 음성 URL 포함)와 현재 문항 번호를 받는다
+
+    ### 4. 문제 풀기 → 종합 피드백
+    - 대화 상세(`GET /conversations/{conversationId}`)는 처음에 한 번만 조회합니다.
+    - 이후에는 답변 제출 응답으로 받는 갱신된 `currentQuestionNumber`로 절차를 이어갑니다.
+
+    1. `currentQuestionNumber` 문항의 `questionAudioUrl`로 질문을 재생한다 (처음에는 1번)
+    2. (선택) `POST /conversations/{conversationId}/questions/{questionNumber}/replay` — 다시 듣기 (문항당 1회)
+    3. `POST /conversations/{conversationId}/questions/{questionNumber}/answer` — 녹음을 제출하고 질문 텍스트, 답변, 답변 분석, 갱신된 `currentQuestionNumber`를 받는다
+    4. "다음 문제" → 갱신된 `currentQuestionNumber`로 1번부터 반복한다
+    5. `currentQuestionNumber`가 null이면(15번까지 답함) "전체 피드백 보기" → `POST /conversations/{conversationId}/overall-feedback` — 종합 피드백을 받고 대화가 완료된다
+
+    ### 5. 목록에서 대화 다시 열기
+    1. `GET /conversations/{conversationId}` — 15문항 전체(답한 문항은 질문 텍스트·답변·답변 분석 포함)와 현재 문항 번호를 받는다
+    2. 이어서 할 일
+       - 진행중이고 `currentQuestionNumber`가 있으면: 그 문항부터 4단계를 이어서 진행
+       - 진행중이고 `currentQuestionNumber`가 null이면: "전체 피드백 보기" (`POST /conversations/{conversationId}/overall-feedback`)
+       - 완료면: `GET /conversations/{conversationId}/overall-feedback` — 종합 피드백을 받는다
+
+    ### 6. 설정
+    1. `GET /users/me` — 닉네임, 로그인 수단
+    2. `POST /auth/logout` — 로그아웃
+    3. `POST /auth/withdraw` — 회원 탈퇴
   version: 0.1.0
 
 servers:
   - url: http://localhost:8080
-    description: 로컬
-  # - url: https://api.example.com   # 개발/운영 서버 주소 확정 후 추가
+    description: 로컬 (개발/운영 서버 주소는 앱 환경 설정으로 별도 전달)
 
 security:
   - bearerAuth: []
 
 tags:
   - name: Auth
-    description: 로그인·인증 (specs/001-auth)
-  - name: Conversation
-    description: 대화 생성·목록·진행 (specs/002, 003, 004)
-  - name: Feedback
-    description: 문항별·종합 피드백 (specs/005, 006)
+    description: 로그인·로그아웃·탈퇴
   - name: User
-    description: 내 정보·설정 (specs/007)
+    description: 내 정보
+  - name: Survey
+    description: 배경 설문 문항
+  - name: Conversation
+    description: 대화 생성·목록·진행
+  - name: Feedback
+    description: 종합 피드백
 
-paths: {}
+paths:
+  # ───────────────────────── Auth ─────────────────────────
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: 카카오 로그인
+      description: |
+        - 앱이 카카오 SDK로 받은 액세스 토큰을 보내면, 처음이면 가입 후 로그인하고 아니면 로그인합니다.
+        - `isNewUser`가 true면 신규 가입입니다 (온보딩 대상).
+        - 신규 가입이어도 상태 코드는 200입니다.
+        - 받은 액세스 토큰 하나로 모든 API를 호출합니다. 유효 기간은 30일이고, 재발급은 없습니다.
+          - 토큰이 만료되면 `EXPIRED_TOKEN`, 로그아웃·탈퇴한 토큰이면 `INVALID_TOKEN`을 응답합니다. 이때는 다시 로그인해야 합니다.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: 잘못되었거나 만료된 카카오 토큰
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 401
+                code: INVALID_KAKAO_TOKEN
+                message: 유효하지 않은 카카오 토큰입니다.
+        '502':
+          description: 카카오 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 502
+                code: KAKAO_SERVER_ERROR
+                message: 카카오 서버와 통신 중 에러가 발생했습니다.
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: 로그아웃
+      description: |
+        - 현재 액세스 토큰을 무효화합니다.
+        - 이후 그 토큰으로 요청하면 401 `INVALID_TOKEN`입니다.
+      responses:
+        '204':
+          description: 로그아웃 성공
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/withdraw:
+    post:
+      tags: [Auth]
+      operationId: withdraw
+      summary: 회원 탈퇴
+      description: |
+        - 사용자를 탈퇴 상태로 바꿉니다.
+        - 이후 그 토큰으로는 어떤 API도 호출할 수 없습니다.
+        - 같은 카카오 계정으로 다시 로그인하면 새 계정으로 가입됩니다(`isNewUser: true`).
+      responses:
+        '204':
+          description: 탈퇴 성공
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me:
+    get:
+      tags: [User]
+      operationId: getMe
+      summary: 내 정보 조회
+      description: 설정 화면의 프로필(닉네임, 로그인 수단)에 사용합니다.
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /background-survey-steps:
+    get:
+      tags: [Survey]
+      operationId: getBackgroundSurveySteps
+      summary: 배경 설문 문항 조회
+      description: |
+        - 대화 생성 화면의 배경 설문 8단계(직업 ~ 휴가·출장)의 질문과 선택지를 내려줍니다.
+        - 대화 생성(`POST /conversations`)의 `backgroundSurvey`에는 여기서 받은 선택지의 `code`를 넣습니다.
+        - 응답 필드
+          - `minTotalSelections`: 여가 활동·취미·관심사·운동·휴가·출장 4개 단계에서 고른 개수의 합계 최소값 (12). 화면의 "누적 N / 12"
+          - `steps`: 설문 단계 목록 (화면 순서대로 8개)
+            - `key`: 이 단계의 답을 보낼 때 쓰는 필드 이름 — 예) `job`, `leisures`
+            - `stepNumber`: 단계 번호 (화면의 "N / 8")
+            - `title`: 단계 제목 — 예) "여가 활동"
+            - `question`: 설문 질문 문구 — 예) "여가 시간에 주로 무엇을 하십니까?"
+            - `selectionType`: 고르는 방식
+              - `SINGLE`: 하나만 고름 → 코드 하나로 보냄 — 예) `"job": "OFFICE_WORKER"`
+              - `MULTIPLE`: 여러 개 고름 → 코드 배열로 보냄 — 예) `"leisures": ["MOVIES", "PARKS"]`
+            - `minSelections`: 이 단계에서 최소로 골라야 하는 개수 (화면의 "최소 2개")
+            - `countsTowardTotal`: 이 단계의 선택 개수가 `minTotalSelections`(12개) 합계에 들어가는지
+              - true: 여가 활동, 취미·관심사, 운동, 휴가·출장
+              - false: 직업, 학생 여부, 최근 수강 강의, 거주 형태
+            - `options`: 선택지 목록
+              - `code`: 서버에 보낼 값
+              - `label`: 선택지 문구
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundSurveyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /conversations:
+    post:
+      tags: [Conversation]
+      operationId: createConversation
+      summary: 대화 생성
+      description: |
+        - 목표 등급과 배경 설문 답으로 대화를 만듭니다.
+        - 대화는 문항 15개로 구성되고 상태는 `IN_PROGRESS`입니다.
+        - 15문항의 질문과 질문 음성을 모두 만든 뒤 응답합니다 (시간이 조금 걸릴 수 있음). 1번은 자기소개 고정 질문입니다.
+
+        - 검증 규칙
+          - 모든 필드는 필수이고, 정해진 코드만 보낼 수 있음
+            - 목표 등급: AL, IH, IM3, IM2, IM1, IL, NH, NM, NL
+            - 설문: `GET /background-survey-steps`에서 받은 각 선택지의 `code`
+          - 같은 선택지를 중복해서 보낼 수 없음
+          - 여가 활동 최소 2개, 취미·관심사 / 운동 / 휴가·출장 각 최소 1개
+          - 여가 활동 + 취미·관심사 + 운동 + 휴가·출장 선택 개수 합계 최소 12개
+          - "운동을 전혀 하지 않음"도 다른 운동과 함께 선택 가능
+          - 위반 시 400 `INVALID_INPUT_VALUE`, `errors`에 필드별 사유
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+      responses:
+        '201':
+          description: |
+            - 생성 성공.
+            - 이어서 `GET /conversations/{conversationId}`로 15문항을 조회해 시작합니다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateConversationResponse'
+        '400':
+          description: 입력값 오류 (설문 선택 개수 부족, 없는 선택지 코드 등)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 400
+                code: INVALID_INPUT_VALUE
+                message: 적절하지 않은 값입니다.
+                errors:
+                  - field: targetGrade
+                    message: 허용되지 않는 등급입니다.
+                  - field: backgroundSurvey.leisures
+                    message: 최소 2개를 선택해야 합니다.
+                  - field: backgroundSurvey
+                    message: 여가·취미·운동·휴가 선택 개수의 합은 최소 12개여야 합니다.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Conversation]
+      operationId: getConversations
+      summary: 내 대화 목록 조회
+      description: |
+        - 홈 화면 목록입니다.
+        - 회차 내림차순(최신순)으로 전체를 한 번에 줍니다 (페이지 나누기 없음).
+        - 대화는 종합 피드백 생성이 끝나야 `COMPLETED`입니다.
+        - 15문항을 다 풀었어도 종합 피드백 전이면 `IN_PROGRESS`입니다.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 생략하면 전체
+          schema:
+            $ref: '#/components/schemas/ConversationStatus'
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationListResponse'
+        '400':
+          description: 잘못된 status 값
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 400
+                code: INVALID_TYPE_VALUE
+                message: 요청 값의 타입이 잘못되었습니다.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /conversations/{conversationId}:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    get:
+      tags: [Conversation]
+      operationId: getConversation
+      summary: 대화 상세 조회
+      description: |
+        - 15문항 전체를 줍니다. 모든 문항에 질문 음성 URL이 있습니다.
+        - 답한 문항에는 질문 텍스트·답변·답변 분석이 있고, 아직 답하지 않은 문항은 `questionText`·`answer`·`feedback`이 null입니다 (질문은 음성으로만 제공).
+        - `currentQuestionNumber`: 지금 풀 차례인 문항 번호 (답변을 제출할 때마다 1씩 올라감). 15문항을 다 답했으면 null
+          - null이고 `status`가 `IN_PROGRESS`면 종합 피드백 생성 전, `COMPLETED`면 종합 피드백까지 완료된 대화
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotConversationOwner'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+
+  /conversations/{conversationId}/questions/{questionNumber}/replay:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      - $ref: '#/components/parameters/QuestionNumber'
+    post:
+      tags: [Conversation]
+      operationId: replayQuestion
+      summary: 질문 다시 듣기
+      description: |
+        - 질문 음성을 다시 재생하기 전에 호출합니다. 성공하면 `questionAudioUrl`을 다시 재생합니다.
+        - 현재 문항에서, 답변 전에, 문항당 1회만 허용합니다 (서버가 횟수 관리).
+        - 실제 OPIc의 "질문이 끝난 뒤 5초 이내" 제한은 서버에서 검사하지 않습니다.
+      responses:
+        '200':
+          description: 다시 듣기 허용
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotConversationOwner'
+        '404':
+          $ref: '#/components/responses/ConversationOrQuestionNotFound'
+        '409':
+          description: 다시 듣기 횟수 소진, 이미 답한 문항, 또는 아직 차례가 아닌 문항
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                limitExceeded:
+                  summary: 다시 듣기 1회 소진
+                  value:
+                    status: 409
+                    code: REPLAY_LIMIT_EXCEEDED
+                    message: 다시 듣기 횟수를 모두 사용했습니다.
+                alreadyAnswered:
+                  summary: 이미 답한 문항
+                  value:
+                    status: 409
+                    code: QUESTION_ALREADY_ANSWERED
+                    message: 이미 답변한 문항입니다.
+                notCurrent:
+                  summary: 아직 차례가 아닌 문항
+                  value:
+                    status: 409
+                    code: QUESTION_NOT_CURRENT
+                    message: 현재 진행 중인 문항이 아닙니다.
+
+  /conversations/{conversationId}/questions/{questionNumber}/answer:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+      - $ref: '#/components/parameters/QuestionNumber'
+    post:
+      tags: [Conversation]
+      operationId: submitAnswer
+      summary: 음성 답변 제출
+      description: |
+        - 현재 문항에 녹음한 답변을 제출합니다 (multipart). 문항당 1회, 순서대로만 가능합니다.
+        - 서버가 음성 인식과 답변 분석까지 끝낸 뒤 한 번에 응답합니다 (시간이 조금 걸릴 수 있음).
+        - 응답: 질문 텍스트, 답변 텍스트, 답변 분석, 갱신된 `currentQuestionNumber`
+          - `currentQuestionNumber`는 방금 답한 문항(`questionNumber`)의 다음 번호입니다 (예: 3번에 답하면 4)
+          - 15번에 답하면 `currentQuestionNumber`가 null → 종합 피드백 생성(`POST /conversations/{conversationId}/overall-feedback`)
+        - 파일: m4a·aac·wav, 최대 2분, 최대 10MB
+        - 이미 답한 문항 → 409 `QUESTION_ALREADY_ANSWERED`, 아직 차례가 아닌 문항 → 409 `QUESTION_NOT_CURRENT`
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubmitAnswerRequest'
+            encoding:
+              audio:
+                contentType: audio/mp4, audio/x-m4a, audio/aac, audio/wav
+      responses:
+        '201':
+          description: 제출 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitAnswerResponse'
+        '400':
+          description: 음성 파일 누락, 허용하지 않는 형식, 최대 길이·용량 초과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 400
+                code: INVALID_AUDIO_FILE
+                message: 지원하지 않는 음성 파일입니다.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotConversationOwner'
+        '404':
+          $ref: '#/components/responses/ConversationOrQuestionNotFound'
+        '409':
+          description: 이미 답한 문항, 또는 아직 차례가 아닌 문항
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                alreadyAnswered:
+                  summary: 이미 답한 문항
+                  value:
+                    status: 409
+                    code: QUESTION_ALREADY_ANSWERED
+                    message: 이미 답변한 문항입니다.
+                notCurrent:
+                  summary: 아직 차례가 아닌 문항
+                  value:
+                    status: 409
+                    code: QUESTION_NOT_CURRENT
+                    message: 현재 진행 중인 문항이 아닙니다.
+
+  # ───────────────────────── Feedback ─────────────────────────
+  /conversations/{conversationId}/overall-feedback:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    post:
+      tags: [Feedback]
+      operationId: createOverallFeedback
+      summary: 종합 피드백 생성 ("전체 피드백 보기")
+      description: |
+        - 15문항에 모두 답한 대화의 종합 피드백을 만들어 바로 응답합니다 (시간이 조금 걸릴 수 있음).
+        - 응답 후 대화는 `COMPLETED`가 됩니다.
+        - 이미 만들어진 종합 피드백이 있으면 새로 만들지 않고 그 결과를 200으로 응답합니다.
+      responses:
+        '200':
+          description: 이미 만들어진 종합 피드백
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOverallFeedbackResponse'
+        '201':
+          description: 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOverallFeedbackResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotConversationOwner'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+        '409':
+          description: 15문항을 다 답하지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 409
+                code: QUESTIONS_NOT_ALL_ANSWERED
+                message: 15문항에 모두 답해야 종합 피드백을 볼 수 있습니다.
+    get:
+      tags: [Feedback]
+      operationId: getOverallFeedback
+      summary: 종합 피드백 조회
+      description: 완료된 대화의 종합 피드백을 다시 볼 때 사용합니다.
+      responses:
+        '200':
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverallFeedbackResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/NotConversationOwner'
+        '404':
+          $ref: '#/components/responses/ConversationNotFound'
+        '409':
+          description: 아직 종합 피드백을 만들지 않음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: 409
+                code: OVERALL_FEEDBACK_NOT_REQUESTED
+                message: 아직 종합 피드백을 만들지 않았습니다.
 
 components:
   securitySchemes:
@@ -34,7 +503,29 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      description: 대화 ID
+      schema:
+        type: integer
+        format: int64
+        example: 42
+    QuestionNumber:
+      name: questionNumber
+      in: path
+      required: true
+      description: 문항 번호 (1~15)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 15
+        example: 3
+
   schemas:
+    # ───────── Common ─────────
     ErrorResponse:
       type: object
       required: [status, code, message]
@@ -44,6 +535,8 @@ components:
           description: HTTP 상태 코드
           example: 400
         code:
+          description: |
+            - 에러 코드.
           $ref: '#/components/schemas/ErrorCode'
         message:
           type: string
@@ -60,15 +553,39 @@ components:
       required: [field]
       properties:
         field:
+          description: 오류가 난 요청 필드 경로
           type: string
           example: targetGrade
         message:
+          description: 필드 오류 사유
           type: [string, 'null']
           example: 필수 값입니다.
 
     ErrorCode:
       type: string
-      description: 기능 스펙이 확정될 때마다 추가합니다.
+      description: |
+        | 코드 | HTTP | 언제 |
+        |---|---|---|
+        | INTERNAL_SERVER_ERROR | 500 | 서버 오류 |
+        | INVALID_INPUT_VALUE | 400 | 입력값 검증 실패 (`errors` 포함) |
+        | INVALID_TYPE_VALUE | 400 | 파라미터 타입·값 오류 |
+        | MISSING_REQUEST_PARAMETER | 400 | 필수 파라미터 누락 |
+        | METHOD_NOT_ALLOWED | 405 | 지원하지 않는 HTTP 메소드 |
+        | NOT_FOUND | 404 | 없는 경로 |
+        | UNAUTHORIZED | 401 | 토큰 없음 → 로그인 |
+        | INVALID_TOKEN | 401 | 잘못된 토큰, 로그아웃·탈퇴한 토큰 → 다시 로그인 |
+        | EXPIRED_TOKEN | 401 | 토큰 만료(30일) → 다시 로그인 |
+        | INVALID_KAKAO_TOKEN | 401 | 카카오 토큰 오류 |
+        | KAKAO_SERVER_ERROR | 502 | 카카오 서버 오류 |
+        | CONVERSATION_NOT_FOUND | 404 | 대화 없음 |
+        | NOT_CONVERSATION_OWNER | 403 | 다른 사용자의 대화 |
+        | QUESTION_NOT_FOUND | 404 | 문항 번호가 1~15 범위 밖 |
+        | QUESTION_NOT_CURRENT | 409 | 아직 차례가 아닌 문항에 답변·다시 듣기 |
+        | QUESTION_ALREADY_ANSWERED | 409 | 이미 답한 문항에 답변·다시 듣기 |
+        | REPLAY_LIMIT_EXCEEDED | 409 | 다시 듣기 1회 소진 |
+        | INVALID_AUDIO_FILE | 400 | 음성 파일 누락·형식 오류, 길이(2분)·용량(10MB) 초과 |
+        | QUESTIONS_NOT_ALL_ANSWERED | 409 | 15문항을 다 답하기 전에 종합 피드백 요청 |
+        | OVERALL_FEEDBACK_NOT_REQUESTED | 409 | 종합 피드백을 만들기 전에 조회 |
       enum:
         - INTERNAL_SERVER_ERROR
         - INVALID_INPUT_VALUE
@@ -77,25 +594,943 @@ components:
         - METHOD_NOT_ALLOWED
         - NOT_FOUND
         - UNAUTHORIZED
-        - ACCESS_DENIED
+        - INVALID_TOKEN
+        - EXPIRED_TOKEN
+        - INVALID_KAKAO_TOKEN
+        - KAKAO_SERVER_ERROR
+        - CONVERSATION_NOT_FOUND
+        - NOT_CONVERSATION_OWNER
+        - QUESTION_NOT_FOUND
+        - QUESTION_NOT_CURRENT
+        - QUESTION_ALREADY_ANSWERED
+        - REPLAY_LIMIT_EXCEEDED
+        - INVALID_AUDIO_FILE
+        - QUESTIONS_NOT_ALL_ANSWERED
+        - OVERALL_FEEDBACK_NOT_REQUESTED
       example: INVALID_INPUT_VALUE
 
     Grade:
       type: string
-      description: OPIc 등급. 낮은 순서 NL < NM < NH < IL < IM1 < IM2 < IM3 < IH < AL
+      description: |
+        - OPIc 등급.
+        - 낮은 순서 NL < NM < NH < IL < IM1 < IM2 < IM3 < IH < AL
       enum: [NL, NM, NH, IL, IM1, IM2, IM3, IH, AL]
       example: IM3
 
     ConversationStatus:
       type: string
+      description: |
+        - IN_PROGRESS: 진행중 (15문항을 다 답했어도 종합 피드백을 만들기 전이면 진행중)
+        - COMPLETED: 종합 피드백까지 완료
       enum: [IN_PROGRESS, COMPLETED]
       example: IN_PROGRESS
 
-    GenerationStatus:
+    # ───────── Auth / User ─────────
+    LoginRequest:
+      type: object
+      required: [kakaoAccessToken]
+      properties:
+        kakaoAccessToken:
+          type: string
+          description: 카카오 SDK 로그인으로 받은 액세스 토큰
+          example: kakao-access-token-example
+
+    LoginResponse:
+      type: object
+      required: [accessToken, isNewUser]
+      properties:
+        accessToken:
+          type: string
+          description: |
+            - 앱 전용 액세스 토큰.
+            - 유효 기간 30일, 재발급 없음
+          example: eyJhbGciOiJIUzI1NiJ9.access.example
+        isNewUser:
+          type: boolean
+          description: 이번 로그인으로 새로 가입했으면 true
+          example: true
+
+    MeResponse:
+      type: object
+      required: [userId, nickname, provider]
+      properties:
+        userId:
+          description: 사용자 ID
+          type: integer
+          format: int64
+          example: 1
+        nickname:
+          type: string
+          description: 첫 가입 시 카카오 닉네임
+          example: 에바연습생
+        provider:
+          description: 로그인 수단
+          type: string
+          enum: [KAKAO]
+          example: KAKAO
+
+    # ───────── Survey ─────────
+    BackgroundSurveyResponse:
+      type: object
+      required: [minTotalSelections, steps]
+      properties:
+        minTotalSelections:
+          type: integer
+          description: 여가·취미·운동·휴가 단계(countsTowardTotal=true) 선택 개수 합계의 최소값
+          example: 12
+        steps:
+          type: array
+          description: 화면 순서대로 8단계
+          items:
+            $ref: '#/components/schemas/SurveyStep'
+      example:
+        minTotalSelections: 12
+        steps:
+          - key: job
+            stepNumber: 1
+            title: 직업
+            question: 현재 귀하는 어느 분야에 종사하고 계십니까?
+            selectionType: SINGLE
+            minSelections: 1
+            countsTowardTotal: false
+            options:
+              - { code: OFFICE_WORKER, label: "사업/회사 근무" }
+              - { code: WORK_FROM_HOME, label: "재택근무/재택사업" }
+              - { code: TEACHER, label: "교사/교육자" }
+              - { code: NO_WORK_EXPERIENCE, label: "일 경험 없음" }
+          - key: student
+            stepNumber: 2
+            title: 학생 여부
+            question: 현재 학생이십니까?
+            selectionType: SINGLE
+            minSelections: 1
+            countsTowardTotal: false
+            options:
+              - { code: 'YES', label: "예" }
+              - { code: 'NO', label: "아니요" }
+          - key: recentCourse
+            stepNumber: 3
+            title: 최근 수강 강의
+            question: 최근에 어떤 강의를 수강하셨습니까?
+            selectionType: SINGLE
+            minSelections: 1
+            countsTowardTotal: false
+            options:
+              - { code: DEGREE_PROGRAM, label: "학위 과정 수업" }
+              - { code: CONTINUING_EDUCATION, label: "전문 기술 향상을 위한 평생학습" }
+              - { code: LANGUAGE_CLASS, label: "어학 수업" }
+              - { code: OVER_FIVE_YEARS_AGO, label: "수강 후 5년 이상 지남" }
+          - key: residence
+            stepNumber: 4
+            title: 거주 형태
+            question: 현재 어디에 살고 계십니까?
+            selectionType: SINGLE
+            minSelections: 1
+            countsTowardTotal: false
+            options:
+              - { code: ALONE, label: "개인 주택·아파트에 혼자 거주" }
+              - { code: WITH_ROOMMATES, label: "친구·룸메이트와 주택·아파트에 거주" }
+              - { code: WITH_FAMILY, label: "가족(배우자/자녀/기타 가족)과 주택·아파트에 거주" }
+              - { code: DORMITORY, label: "학교 기숙사" }
+              - { code: MILITARY_BASE, label: "군대 막사·군 시설" }
+          - key: leisures
+            stepNumber: 5
+            title: 여가 활동
+            question: 여가 시간에 주로 무엇을 하십니까?
+            selectionType: MULTIPLE
+            minSelections: 2
+            countsTowardTotal: true
+            options:
+              - { code: MOVIES, label: "영화 보기" }
+              - { code: CLUBS, label: "클럽/나이트클럽 가기" }
+              - { code: PERFORMANCES, label: "공연 보기" }
+              - { code: CONCERTS, label: "콘서트 보기" }
+              - { code: MUSEUMS, label: "박물관 가기" }
+              - { code: PARKS, label: "공원 가기" }
+              - { code: CAMPING, label: "캠핑하기" }
+              - { code: BEACH, label: "해변 가기" }
+              - { code: WATCHING_SPORTS, label: "스포츠 관람" }
+              - { code: GAMES, label: "게임하기" }
+              - { code: SNS_POSTING, label: "SNS에 글 올리기" }
+              - { code: TEXTING_FRIENDS, label: "친구들과 문자 대화하기" }
+              - { code: HOME_IMPROVEMENT, label: "주거 개선" }
+              - { code: BARS, label: "술집/바에 가기" }
+              - { code: CAFES, label: "카페/커피 전문점 가기" }
+              - { code: SHOPPING, label: "쇼핑하기" }
+              - { code: WATCHING_TV, label: "TV 시청하기" }
+              - { code: REALITY_SHOWS, label: "리얼리티 쇼 시청하기" }
+              - { code: NEWS, label: "뉴스 보기/듣기" }
+              - { code: COOKING_SHOWS, label: "요리 관련 프로그램 시청하기" }
+              - { code: CHESS, label: "체스하기" }
+              - { code: BILLIARDS, label: "당구" }
+              - { code: TEST_PREP_COURSES, label: "시험 대비 과정 수강하기" }
+              - { code: JOB_HUNTING, label: "구직 활동하기" }
+              - { code: VOLUNTEERING, label: "자원봉사하기" }
+              - { code: DRIVING, label: "드라이브하기" }
+          - key: hobbies
+            stepNumber: 6
+            title: 취미·관심사
+            question: 취미나 관심사는 무엇입니까?
+            selectionType: MULTIPLE
+            minSelections: 1
+            countsTowardTotal: true
+            options:
+              - { code: READING_TO_CHILDREN, label: "아이에게 책 읽어주기" }
+              - { code: LISTENING_TO_MUSIC, label: "음악 감상하기" }
+              - { code: PLAYING_INSTRUMENTS, label: "악기 연주하기" }
+              - { code: SINGING, label: "혼자 노래 부르기/합창하기" }
+              - { code: DANCING, label: "춤추기" }
+              - { code: WRITING, label: "글쓰기(편지, 단문, 시 등)" }
+              - { code: DRAWING, label: "그림 그리기" }
+              - { code: COOKING, label: "요리하기" }
+              - { code: RAISING_PETS, label: "반려동물 키우기" }
+              - { code: INVESTING, label: "주식 투자하기" }
+              - { code: READING_NEWSPAPERS, label: "신문 읽기" }
+              - { code: READING_TRAVEL_MEDIA, label: "여행 관련 잡지·블로그 읽기" }
+              - { code: READING, label: "독서" }
+              - { code: PHOTOGRAPHY, label: "사진 촬영하기" }
+          - key: sports
+            stepNumber: 7
+            title: 운동
+            question: 어떤 운동을 즐기십니까?
+            selectionType: MULTIPLE
+            minSelections: 1
+            countsTowardTotal: true
+            options:
+              - { code: BASKETBALL, label: "농구" }
+              - { code: BASEBALL, label: "야구/소프트볼" }
+              - { code: SOCCER, label: "축구" }
+              - { code: AMERICAN_FOOTBALL, label: "미식축구" }
+              - { code: HOCKEY, label: "하키" }
+              - { code: CRICKET, label: "크리켓" }
+              - { code: GOLF, label: "골프" }
+              - { code: VOLLEYBALL, label: "배구" }
+              - { code: TENNIS, label: "테니스" }
+              - { code: BADMINTON, label: "배드민턴" }
+              - { code: TABLE_TENNIS, label: "탁구" }
+              - { code: SWIMMING, label: "수영" }
+              - { code: CYCLING, label: "자전거" }
+              - { code: SKIING, label: "스키/스노보드" }
+              - { code: ICE_SKATING, label: "아이스 스케이트" }
+              - { code: JOGGING, label: "조깅" }
+              - { code: WALKING, label: "걷기" }
+              - { code: YOGA, label: "요가" }
+              - { code: HIKING, label: "하이킹/트레킹" }
+              - { code: FISHING, label: "낚시" }
+              - { code: GYM, label: "헬스" }
+              - { code: TAEKWONDO, label: "태권도" }
+              - { code: EXERCISE_CLASSES, label: "운동 수업 수강하기" }
+              - { code: NONE, label: "운동을 전혀 하지 않음" }
+          - key: travels
+            stepNumber: 8
+            title: 휴가·출장
+            question: 어떤 휴가나 출장을 다녀오셨습니까?
+            selectionType: MULTIPLE
+            minSelections: 1
+            countsTowardTotal: true
+            options:
+              - { code: STAYCATION, label: "집에서 보내는 휴가" }
+              - { code: DOMESTIC_BUSINESS_TRIP, label: "국내 출장" }
+              - { code: OVERSEAS_BUSINESS_TRIP, label: "해외 출장" }
+              - { code: DOMESTIC_TRAVEL, label: "국내 여행" }
+              - { code: OVERSEAS_TRAVEL, label: "해외 여행" }
+
+    SurveyStep:
+      type: object
+      required: [key, stepNumber, title, question, selectionType, minSelections, countsTowardTotal, options]
+      properties:
+        key:
+          type: string
+          description: 요청 바디 `backgroundSurvey`의 필드 이름과 같음
+          enum: [job, student, recentCourse, residence, leisures, hobbies, sports, travels]
+          example: leisures
+        stepNumber:
+          description: 단계 번호 (화면의 "N / 8")
+          type: integer
+          minimum: 1
+          maximum: 8
+          example: 5
+        title:
+          description: 단계 제목
+          type: string
+          example: 여가 활동
+        question:
+          description: 설문 질문 문구
+          type: string
+          example: 여가 시간에 주로 무엇을 하십니까?
+        selectionType:
+          type: string
+          description: SINGLE이면 코드 하나(문자열), MULTIPLE이면 코드 배열로 보냅니다
+          enum: [SINGLE, MULTIPLE]
+          example: MULTIPLE
+        minSelections:
+          description: 이 단계에서 골라야 하는 최소 개수
+          type: integer
+          example: 2
+        countsTowardTotal:
+          type: boolean
+          description: 합계 12개 계산에 포함되는 단계인지
+          example: true
+        options:
+          description: 선택지 목록
+          type: array
+          items:
+            $ref: '#/components/schemas/SurveyOption'
+
+    SurveyOption:
+      type: object
+      required: [code, label]
+      properties:
+        code:
+          description: |
+            - 선택지 코드.
+            - 요청에 이 값을 보냅니다
+          type: string
+          example: MOVIES
+        label:
+          description: 선택지 문구
+          type: string
+          example: 영화 보기
+
+    BackgroundSurvey:
+      type: object
+      description: |
+        - 배경 설문 답.
+        - 선택지 코드 목록은 각 enum 참고 (화면 문구는 `GET /background-survey-steps`의 label)
+      required: [job, student, recentCourse, residence, leisures, hobbies, sports, travels]
+      properties:
+        job:
+          description: 1단계 직업 (1개)
+          $ref: '#/components/schemas/JobOption'
+        student:
+          description: 2단계 학생 여부 (1개)
+          $ref: '#/components/schemas/StudentOption'
+        recentCourse:
+          description: 3단계 최근 수강 강의 (1개)
+          $ref: '#/components/schemas/RecentCourseOption'
+        residence:
+          description: 4단계 거주 형태 (1개)
+          $ref: '#/components/schemas/ResidenceOption'
+        leisures:
+          type: array
+          description: 여가 활동 (최소 2개)
+          minItems: 2
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/LeisureOption'
+          example: [MOVIES, PARKS, BEACH, CAFES]
+        hobbies:
+          type: array
+          description: 취미·관심사 (최소 1개)
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/HobbyOption'
+          example: [LISTENING_TO_MUSIC, READING]
+        sports:
+          type: array
+          description: 운동 (최소 1개)
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SportOption'
+          example: [JOGGING, WALKING, GYM]
+        travels:
+          type: array
+          description: 휴가·출장 (최소 1개)
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TravelOption'
+          example: [STAYCATION, DOMESTIC_TRAVEL, OVERSEAS_TRAVEL]
+
+    JobOption:
       type: string
-      description: AI 생성 작업의 상태. COMPLETED/FAILED가 될 때까지 폴링합니다.
-      enum: [PENDING, COMPLETED, FAILED]
-      example: PENDING
+      description: 사업/회사 근무, 재택근무/재택사업, 교사/교육자, 일 경험 없음
+      enum: [OFFICE_WORKER, WORK_FROM_HOME, TEACHER, NO_WORK_EXPERIENCE]
+      example: OFFICE_WORKER
+
+    StudentOption:
+      type: string
+      description: 학생 여부 — 예(YES), 아니요(NO)
+      enum: ['YES', 'NO']
+      example: 'NO'
+
+    RecentCourseOption:
+      type: string
+      description: 학위 과정 수업, 전문 기술 향상을 위한 평생학습, 어학 수업, 수강 후 5년 이상 지남
+      enum: [DEGREE_PROGRAM, CONTINUING_EDUCATION, LANGUAGE_CLASS, OVER_FIVE_YEARS_AGO]
+      example: OVER_FIVE_YEARS_AGO
+
+    ResidenceOption:
+      type: string
+      description: 혼자 거주, 친구·룸메이트와 거주, 가족과 거주, 학교 기숙사, 군대 막사·군 시설
+      enum: [ALONE, WITH_ROOMMATES, WITH_FAMILY, DORMITORY, MILITARY_BASE]
+      example: ALONE
+
+    LeisureOption:
+      type: string
+      description: |
+        - 영화 보기(MOVIES), 클럽/나이트클럽 가기(CLUBS), 공연 보기(PERFORMANCES), 콘서트 보기(CONCERTS),
+        - 박물관 가기(MUSEUMS), 공원 가기(PARKS), 캠핑하기(CAMPING), 해변 가기(BEACH), 스포츠 관람(WATCHING_SPORTS),
+        - 게임하기(GAMES), SNS에 글 올리기(SNS_POSTING), 친구들과 문자 대화하기(TEXTING_FRIENDS), 주거 개선(HOME_IMPROVEMENT),
+        - 술집/바에 가기(BARS), 카페/커피 전문점 가기(CAFES), 쇼핑하기(SHOPPING), TV 시청하기(WATCHING_TV),
+        - 리얼리티 쇼 시청하기(REALITY_SHOWS), 뉴스 보기/듣기(NEWS), 요리 관련 프로그램 시청하기(COOKING_SHOWS),
+        - 체스하기(CHESS), 당구(BILLIARDS), 시험 대비 과정 수강하기(TEST_PREP_COURSES), 구직 활동하기(JOB_HUNTING),
+        - 자원봉사하기(VOLUNTEERING), 드라이브하기(DRIVING)
+      enum:
+        - MOVIES
+        - CLUBS
+        - PERFORMANCES
+        - CONCERTS
+        - MUSEUMS
+        - PARKS
+        - CAMPING
+        - BEACH
+        - WATCHING_SPORTS
+        - GAMES
+        - SNS_POSTING
+        - TEXTING_FRIENDS
+        - HOME_IMPROVEMENT
+        - BARS
+        - CAFES
+        - SHOPPING
+        - WATCHING_TV
+        - REALITY_SHOWS
+        - NEWS
+        - COOKING_SHOWS
+        - CHESS
+        - BILLIARDS
+        - TEST_PREP_COURSES
+        - JOB_HUNTING
+        - VOLUNTEERING
+        - DRIVING
+      example: MOVIES
+
+    HobbyOption:
+      type: string
+      description: |
+        - 아이에게 책 읽어주기(READING_TO_CHILDREN), 음악 감상하기(LISTENING_TO_MUSIC), 악기 연주하기(PLAYING_INSTRUMENTS),
+        - 혼자 노래 부르기/합창하기(SINGING), 춤추기(DANCING), 글쓰기(WRITING), 그림 그리기(DRAWING), 요리하기(COOKING),
+        - 반려동물 키우기(RAISING_PETS), 주식 투자하기(INVESTING), 신문 읽기(READING_NEWSPAPERS),
+        - 여행 관련 잡지·블로그 읽기(READING_TRAVEL_MEDIA), 독서(READING), 사진 촬영하기(PHOTOGRAPHY)
+      enum:
+        - READING_TO_CHILDREN
+        - LISTENING_TO_MUSIC
+        - PLAYING_INSTRUMENTS
+        - SINGING
+        - DANCING
+        - WRITING
+        - DRAWING
+        - COOKING
+        - RAISING_PETS
+        - INVESTING
+        - READING_NEWSPAPERS
+        - READING_TRAVEL_MEDIA
+        - READING
+        - PHOTOGRAPHY
+      example: LISTENING_TO_MUSIC
+
+    SportOption:
+      type: string
+      description: |
+        - 농구(BASKETBALL), 야구/소프트볼(BASEBALL), 축구(SOCCER), 미식축구(AMERICAN_FOOTBALL), 하키(HOCKEY), 크리켓(CRICKET),
+        - 골프(GOLF), 배구(VOLLEYBALL), 테니스(TENNIS), 배드민턴(BADMINTON), 탁구(TABLE_TENNIS), 수영(SWIMMING),
+        - 자전거(CYCLING), 스키/스노보드(SKIING), 아이스 스케이트(ICE_SKATING), 조깅(JOGGING), 걷기(WALKING), 요가(YOGA),
+        - 하이킹/트레킹(HIKING), 낚시(FISHING), 헬스(GYM), 태권도(TAEKWONDO), 운동 수업 수강하기(EXERCISE_CLASSES),
+        - 운동을 전혀 하지 않음(NONE)
+        - NONE도 다른 운동과 함께 선택할 수 있습니다.
+      enum:
+        - BASKETBALL
+        - BASEBALL
+        - SOCCER
+        - AMERICAN_FOOTBALL
+        - HOCKEY
+        - CRICKET
+        - GOLF
+        - VOLLEYBALL
+        - TENNIS
+        - BADMINTON
+        - TABLE_TENNIS
+        - SWIMMING
+        - CYCLING
+        - SKIING
+        - ICE_SKATING
+        - JOGGING
+        - WALKING
+        - YOGA
+        - HIKING
+        - FISHING
+        - GYM
+        - TAEKWONDO
+        - EXERCISE_CLASSES
+        - NONE
+      example: JOGGING
+
+    TravelOption:
+      type: string
+      description: 집에서 보내는 휴가(STAYCATION), 국내 출장(DOMESTIC_BUSINESS_TRIP), 해외 출장(OVERSEAS_BUSINESS_TRIP), 국내 여행(DOMESTIC_TRAVEL), 해외 여행(OVERSEAS_TRAVEL)
+      enum: [STAYCATION, DOMESTIC_BUSINESS_TRIP, OVERSEAS_BUSINESS_TRIP, DOMESTIC_TRAVEL, OVERSEAS_TRAVEL]
+      example: DOMESTIC_TRAVEL
+
+    # ───────── Conversation ─────────
+    CreateConversationRequest:
+      type: object
+      required: [targetGrade, backgroundSurvey]
+      properties:
+        targetGrade:
+          description: 목표 등급
+          $ref: '#/components/schemas/Grade'
+        backgroundSurvey:
+          description: 배경 설문 답
+          $ref: '#/components/schemas/BackgroundSurvey'
+
+    CreateConversationResponse:
+      type: object
+      required: [conversationId]
+      properties:
+        conversationId:
+          type: integer
+          format: int64
+          description: 생성된 대화 ID
+          example: 42
+
+    ConversationSummary:
+      type: object
+      description: 홈 목록의 한 줄 ("대화 4회차 · 목표 AL · 2025년 8월 1일" + 상태 또는 종합 예상 등급)
+      required: [conversationId, round, targetGrade, status, overallEstimatedGrade, createdAt]
+      properties:
+        conversationId:
+          description: 대화 ID
+          type: integer
+          format: int64
+          example: 42
+        round:
+          type: integer
+          description: N회차 (사용자별 1부터)
+          example: 2
+        targetGrade:
+          description: 목표 등급 (부제의 "목표 AL")
+          $ref: '#/components/schemas/Grade'
+        status:
+          description: |
+            - 대화 상태.
+          $ref: '#/components/schemas/ConversationStatus'
+        overallEstimatedGrade:
+          description: |
+            - 종합 예상 등급 (목록 뱃지).
+            - COMPLETED인 대화는 항상 값이 있고, IN_PROGRESS면 null
+          oneOf:
+            - $ref: '#/components/schemas/Grade'
+            - type: 'null'
+          example: IH
+        createdAt:
+          description: 대화 생성 시각 (부제의 날짜)
+          type: string
+          format: date-time
+          example: '2026-11-18T10:00:00+09:00'
+
+    ConversationListResponse:
+      type: object
+      required: [totalCount, items]
+      properties:
+        totalCount:
+          type: integer
+          description: 필터 조건에 맞는 전체 개수 ("대화 4개")
+          example: 2
+        items:
+          description: 대화 목록 (회차 내림차순)
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationSummary'
+      example:
+        totalCount: 2
+        items:
+          - conversationId: 42
+            round: 2
+            targetGrade: AL
+            status: IN_PROGRESS
+            overallEstimatedGrade: null
+            createdAt: '2026-11-18T10:00:00+09:00'
+          - conversationId: 17
+            round: 1
+            targetGrade: IM3
+            status: COMPLETED
+            overallEstimatedGrade: IM3
+            createdAt: '2026-11-10T21:30:00+09:00'
+
+    ConversationDetailResponse:
+      type: object
+      description: 대화 상세 조회 응답
+      required: [conversationId, round, targetGrade, status, totalQuestionCount, currentQuestionNumber, questions, createdAt]
+      properties:
+        conversationId:
+          description: 대화 ID
+          type: integer
+          format: int64
+          example: 42
+        round:
+          description: N회차 (사용자별 1부터)
+          type: integer
+          example: 2
+        targetGrade:
+          description: 목표 등급
+          $ref: '#/components/schemas/Grade'
+        status:
+          description: 대화 상태
+          $ref: '#/components/schemas/ConversationStatus'
+        totalQuestionCount:
+          description: 전체 문항 수 (화면의 "N / 15")
+          type: integer
+          example: 15
+        currentQuestionNumber:
+          type: [integer, 'null']
+          description: |
+            - 지금 풀 차례인 문항 번호 (화면의 "N / 15"). 답변을 제출할 때마다 1씩 올라갑니다
+            - 목록에서 대화를 다시 열면 이 번호의 문항부터 이어서 풉니다
+            - 15문항을 다 답했으면 null
+          example: 2
+        questions:
+          type: array
+          description: 15문항 전체 (문항 번호 순)
+          items:
+            $ref: '#/components/schemas/ConversationQuestionItem'
+        createdAt:
+          description: 대화 생성 시각
+          type: string
+          format: date-time
+          example: '2026-11-18T10:00:00+09:00'
+      example:
+        conversationId: 42
+        round: 2
+        targetGrade: AL
+        status: IN_PROGRESS
+        totalQuestionCount: 15
+        currentQuestionNumber: 2
+        questions:
+          - questionNumber: 1
+            questionAudioUrl: https://storage.example.com/questions/42/1.mp3
+            questionAudioDurationSeconds: 9
+            questionText: Let's start the interview now. Tell me a little bit about yourself.
+            replayRemaining: 1
+            answer:
+              transcript: Hi, my name is Minji. I'm a college student majoring in business, and I live in Seoul with my family.
+              audioUrl: https://storage.example.com/answers/42/1.m4a
+              durationSeconds: 48
+              answeredAt: '2026-11-18T10:02:10+09:00'
+            feedback:
+              estimatedGrade: IM2
+              targetGrade: AL
+              improvementTips:
+                - 전공과 사는 곳 외에 성격이나 취미를 덧붙이면 자기소개가 풍성해져요.
+                - and로만 잇지 말고 which, so 같은 연결어를 써 보세요.
+              recommendedScript: Hi, I'm Minji. I'm a business major in college, and I live in Seoul with my family, which keeps me pretty busy but happy.
+              keyExpressions: [business major, keeps me busy]
+          - questionNumber: 2
+            questionAudioUrl: https://storage.example.com/questions/42/2.mp3
+            questionAudioDurationSeconds: 15
+            questionText: null
+            replayRemaining: 1
+            answer: null
+            feedback: null
+        createdAt: '2026-11-18T10:00:00+09:00'
+
+    ConversationQuestionItem:
+      type: object
+      description: 대화 상세의 문항 하나. 답변 전에는 질문 음성만, 답변 후에는 질문 텍스트·답변·답변 분석이 채워집니다.
+      required: [questionNumber, questionAudioUrl, questionAudioDurationSeconds, questionText, replayRemaining, answer, feedback]
+      properties:
+        questionNumber:
+          description: 문항 번호 (1~15)
+          type: integer
+          example: 1
+        questionAudioUrl:
+          description: Eva 질문 음성 URL (만료 없음)
+          type: string
+          format: uri
+          example: https://storage.example.com/questions/42/1.mp3
+        questionAudioDurationSeconds:
+          description: 질문 음성 길이(초)
+          type: integer
+          example: 15
+        questionText:
+          type: [string, 'null']
+          description: |
+            - 질문 원문
+            - 답변하기 전에는 null (질문은 음성으로만 제공)
+          example: You indicated in the survey that you enjoy going to parks. Tell me about a park you often visit.
+        replayRemaining:
+          description: 남은 다시 듣기 횟수 (0 또는 1)
+          type: integer
+          example: 1
+        answer:
+          description: 사용자 답변. 답변 전에는 null
+          oneOf:
+            - $ref: '#/components/schemas/Answer'
+            - type: 'null'
+        feedback:
+          description: 답변 분석. 답변 전에는 null
+          oneOf:
+            - $ref: '#/components/schemas/QuestionFeedback'
+            - type: 'null'
+
+    Answer:
+      type: object
+      required: [transcript, audioUrl, durationSeconds, answeredAt]
+      properties:
+        transcript:
+          type: string
+          description: 음성 인식 결과 (화면의 "나의 답변")
+          example: I often go to Hangang Park near my house. It is very big and has many trees. I usually walk there with my friend on weekends, and we talk a lot.
+        audioUrl:
+          type: string
+          format: uri
+          description: 사용자가 녹음한 음성
+          example: https://storage.example.com/answers/42/1.m4a
+        durationSeconds:
+          description: 녹음 길이(초)
+          type: integer
+          example: 42
+        answeredAt:
+          description: 답변 제출 시각
+          type: string
+          format: date-time
+          example: '2026-11-18T10:03:12+09:00'
+
+    SubmitAnswerRequest:
+      type: object
+      required: [audio]
+      properties:
+        audio:
+          type: string
+          contentMediaType: audio/mp4
+          description: |
+            - 녹음 파일 (binary).
+            - m4a·aac·wav, 최대 2분, 최대 10MB
+          example: answer.m4a
+
+    SubmitAnswerResponse:
+      type: object
+      description: 답변 제출 응답. 방금 답한 문항의 질문 텍스트·답변·답변 분석과 다음 진행 정보
+      required: [questionNumber, questionText, answer, feedback, currentQuestionNumber]
+      properties:
+        questionNumber:
+          description: 방금 답한 문항 번호
+          type: integer
+          example: 1
+        questionText:
+          description: 질문 원문 (답변 후 공개)
+          type: string
+          example: Let's start the interview now. Tell me a little bit about yourself.
+        answer:
+          description: 방금 제출한 답변
+          $ref: '#/components/schemas/Answer'
+        feedback:
+          description: 답변 분석 ("Eva의 답변 분석")
+          $ref: '#/components/schemas/QuestionFeedback'
+        currentQuestionNumber:
+          type: [integer, 'null']
+          description: |
+            - 답변을 제출해서 넘어간 다음 문제 번호 (방금 답한 번호 + 1)
+            - 15번에 답했으면 null (다음은 종합 피드백 생성)
+          example: 2
+
+    ReplayResponse:
+      type: object
+      required: [questionNumber, replayRemaining, questionAudioUrl]
+      properties:
+        questionNumber:
+          description: 문항 번호
+          type: integer
+          example: 1
+        replayRemaining:
+          description: 남은 다시 듣기 횟수 (호출 후 0)
+          type: integer
+          example: 0
+        questionAudioUrl:
+          description: 다시 재생할 질문 음성 URL
+          type: string
+          format: uri
+          example: https://storage.example.com/questions/42/1.mp3
+
+    # ───────── Feedback ─────────
+    QuestionFeedback:
+      type: object
+      description: 답변 분석 ("Eva의 답변 분석")
+      required: [estimatedGrade, targetGrade, improvementTips, recommendedScript, keyExpressions]
+      properties:
+        estimatedGrade:
+          description: 이 답변의 예상 등급
+          $ref: '#/components/schemas/Grade'
+        targetGrade:
+          description: 목표 등급 (대화의 목표 등급)
+          $ref: '#/components/schemas/Grade'
+        improvementTips:
+          type: array
+          description: 답변 디벨롭 — 목표 등급 기준 개선 방법 (한국어, 2~5개)
+          minItems: 2
+          maxItems: 5
+          items:
+            type: string
+          example:
+            - very big, many trees 같은 단순한 표현 대신 공원의 분위기와 풍경을 구체적으로 묘사해 보세요.
+            - 주말 루틴에 이유나 느낌을 덧붙이면 AL 수준의 전개가 돼요.
+            - which, so 같은 연결어로 문장을 이어 길고 자연스럽게 말해 보세요.
+        recommendedScript:
+          type: string
+          description: 추천 스크립트 ("이렇게 말해 보세요") — 개선된 예시 답변 (영어)
+          example: Hangang Park is a short walk from my place, and it is lined with tall trees and a long cycling path. On weekends, my friend and I usually take a slow walk there, which helps me unwind after a busy week.
+        keyExpressions:
+          type: array
+          description: 주요 단어 — 추천 스크립트의 핵심 표현
+          items:
+            type: string
+          example: [lined with, cycling path, slow walk, unwind, short walk]
+
+    CreateOverallFeedbackResponse:
+      type: object
+      description: 종합 피드백 생성("전체 피드백 보기") 응답
+      required: [conversationId, totalQuestionCount, overallEstimatedGrade, targetGrade, areaScores, strengths, weaknesses, recommendedStudies, frequentExpressions, closingMessage]
+      properties:
+        conversationId:
+          description: 대화 ID
+          type: integer
+          format: int64
+          example: 42
+        totalQuestionCount:
+          description: 전체 문항 수 ("총 15문제")
+          type: integer
+          example: 15
+        overallEstimatedGrade:
+          description: 종합 예상 등급
+          $ref: '#/components/schemas/Grade'
+        targetGrade:
+          description: 목표 등급
+          $ref: '#/components/schemas/Grade'
+        areaScores:
+          description: 영역별 평가 (0~100)
+          $ref: '#/components/schemas/AreaScores'
+        strengths:
+          type: array
+          description: 잘한 점
+          items:
+            type: string
+          example:
+            - 질문에 맞는 답변을 끝까지 이어 말했어요.
+            - 일상 주제에서 어휘가 자연스러웠어요.
+        weaknesses:
+          type: array
+          description: 보완할 점
+          items:
+            type: string
+          example:
+            - 시제 일치와 연결어 사용이 아직 불안정해요.
+            - 같은 표현을 반복하는 경향이 있어요.
+        recommendedStudies:
+          type: array
+          description: 추천 학습
+          items:
+            type: string
+          example:
+            - 연결어 표현을 정리하고 한 문제당 3문장 이어 말하기
+            - 주제별 핵심 표현 10개씩 정리하기
+        frequentExpressions:
+          type: array
+          description: 자주 쓴 표현
+          items:
+            type: string
+          example: [very big, many, a lot, really]
+        closingMessage:
+          type: string
+          description: Eva의 마무리 메시지 (결과에 맞춰 AI가 작성)
+          example: 오늘 정말 고생 많았어요. 꾸준히 연습하면 목표인 AL에 충분히 가까워질 수 있어요. 다음 모의고사에서 또 만나요!
+
+    OverallFeedbackResponse:
+      type: object
+      description: 종합 피드백 조회 응답
+      required: [conversationId, totalQuestionCount, overallEstimatedGrade, targetGrade, areaScores, strengths, weaknesses, recommendedStudies, frequentExpressions, closingMessage]
+      properties:
+        conversationId:
+          description: 대화 ID
+          type: integer
+          format: int64
+          example: 42
+        totalQuestionCount:
+          description: 전체 문항 수 ("총 15문제")
+          type: integer
+          example: 15
+        overallEstimatedGrade:
+          description: 종합 예상 등급
+          $ref: '#/components/schemas/Grade'
+        targetGrade:
+          description: 목표 등급
+          $ref: '#/components/schemas/Grade'
+        areaScores:
+          description: 영역별 평가 (0~100)
+          $ref: '#/components/schemas/AreaScores'
+        strengths:
+          type: array
+          description: 잘한 점
+          items:
+            type: string
+          example:
+            - 질문에 맞는 답변을 끝까지 이어 말했어요.
+            - 일상 주제에서 어휘가 자연스러웠어요.
+        weaknesses:
+          type: array
+          description: 보완할 점
+          items:
+            type: string
+          example:
+            - 시제 일치와 연결어 사용이 아직 불안정해요.
+            - 같은 표현을 반복하는 경향이 있어요.
+        recommendedStudies:
+          type: array
+          description: 추천 학습
+          items:
+            type: string
+          example:
+            - 연결어 표현을 정리하고 한 문제당 3문장 이어 말하기
+            - 주제별 핵심 표현 10개씩 정리하기
+        frequentExpressions:
+          type: array
+          description: 자주 쓴 표현
+          items:
+            type: string
+          example: [very big, many, a lot, really]
+        closingMessage:
+          type: string
+          description: Eva의 마무리 메시지 (결과에 맞춰 AI가 작성)
+          example: 오늘 정말 고생 많았어요. 꾸준히 연습하면 목표인 AL에 충분히 가까워질 수 있어요. 다음 모의고사에서 또 만나요!
+
+    AreaScores:
+      type: object
+      required: [fluency, vocabulary, grammar, organization]
+      properties:
+        fluency:
+          type: integer
+          description: 유창성
+          minimum: 0
+          maximum: 100
+          example: 60
+        vocabulary:
+          type: integer
+          description: 어휘
+          minimum: 0
+          maximum: 100
+          example: 55
+        grammar:
+          type: integer
+          description: 문법
+          minimum: 0
+          maximum: 100
+          example: 65
+        organization:
+          type: integer
+          description: 내용 구성
+          minimum: 0
+          maximum: 100
+          example: 50
 
   responses:
     BadRequest:
@@ -104,31 +1539,71 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 400
+            code: INVALID_INPUT_VALUE
+            message: 적절하지 않은 값입니다.
     Unauthorized:
-      description: 인증 없음·만료
+      description: 토큰 없음·만료·무효 → 다시 로그인
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missing:
+              summary: 토큰 없음
+              value:
+                status: 401
+                code: UNAUTHORIZED
+                message: 인증이 필요합니다.
+            expired:
+              summary: 토큰 만료(30일) → 다시 로그인
+              value:
+                status: 401
+                code: EXPIRED_TOKEN
+                message: 만료된 토큰입니다.
+            invalid:
+              summary: 잘못된 토큰, 로그아웃·탈퇴한 토큰 → 다시 로그인
+              value:
+                status: 401
+                code: INVALID_TOKEN
+                message: 유효하지 않은 토큰입니다.
+    NotConversationOwner:
+      description: 다른 사용자의 대화
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
           example:
-            status: 401
-            code: UNAUTHORIZED
-            message: 인증이 필요합니다.
-    Forbidden:
-      description: 다른 사용자의 리소스
+            status: 403
+            code: NOT_CONVERSATION_OWNER
+            message: 해당 대화에 접근할 권한이 없습니다.
+    ConversationNotFound:
+      description: 대화 없음
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-    NotFound:
-      description: 리소스 없음
+          example:
+            status: 404
+            code: CONVERSATION_NOT_FOUND
+            message: 대화를 찾을 수 없습니다.
+    ConversationOrQuestionNotFound:
+      description: 대화가 없거나(CONVERSATION_NOT_FOUND), 문항 번호가 1~15 범위 밖(QUESTION_NOT_FOUND)
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-    Conflict:
-      description: 현재 상태에서 할 수 없는 요청
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            conversation:
+              summary: 대화 없음
+              value:
+                status: 404
+                code: CONVERSATION_NOT_FOUND
+                message: 대화를 찾을 수 없습니다.
+            question:
+              summary: 문항 없음
+              value:
+                status: 404
+                code: QUESTION_NOT_FOUND
+                message: 문항을 찾을 수 없습니다.

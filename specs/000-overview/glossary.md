@@ -16,14 +16,19 @@
 | 배경 설문 | BackgroundSurvey | OPIc 시작 전 직업·거주·여가 등을 고르는 설문 |
 | 문항별 피드백, 답변 분석 | QuestionFeedback | 문항 하나에 대한 평가 |
 | 답변 디벨롭 | improvementTips | 목표 등급에 맞춰 답변을 개선하는 방법 (목록) |
-| 이렇게 말해 보세요 | recommendedScript | 개선된 예시 답변 |
+| 추천 스크립트 (화면: 이렇게 말해 보세요) | recommendedScript | 개선된 예시 답변 |
 | 주요 단어 | keyExpressions | 예시 답변에 쓰인 핵심 표현 |
 | 종합 피드백 | OverallFeedback | 대화 15문항 전체에 대한 평가 |
 | 영역별 평가 | areaScores | 유창성(fluency)·어휘(vocabulary)·문법(grammar)·내용 구성(organization) 점수 (0~100) |
 | 잘한 점 / 보완할 점 | strengths / weaknesses | 종합 피드백 항목 |
 | 추천 학습 | recommendedStudies | 다음에 공부할 것 |
 | 자주 쓴 표현 | frequentExpressions | 사용자가 반복해서 쓴 표현 |
-| 진행중 / 완료 | IN_PROGRESS / COMPLETED | 대화 상태 (`ConversationStatus`) |
+| 진행중 / 완료 | IN_PROGRESS / COMPLETED | 대화 상태 (`ConversationStatus`). 완료 = 종합 피드백 생성 완료. 15문항을 다 풀어도 그 전엔 진행중 |
+| 종합 예상 등급 | overallEstimatedGrade | 종합 피드백의 예상 등급. 목록에도 표시 |
+| 마무리 메시지 | closingMessage | 종합 피드백 끝의 Eva 메시지 |
+| 나의 답변 (텍스트) | transcript | 답변 음성을 인식한 텍스트(전사본) |
+| 다시 듣기 | replay / replayRemaining | 질문 음성 다시 재생. 문항당 1회 |
+| 로그인 수단 | provider (`KAKAO`) | 가입·로그인한 소셜 계정 종류 |
 
 ## OPIc 등급 (`Grade`)
 

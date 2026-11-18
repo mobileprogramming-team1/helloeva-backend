@@ -4,7 +4,7 @@
 (아래 예시의 클래스·테이블 이름은 형식 예시일 뿐, 확정된 설계가 아니다.)
 
 ```
-spec: 002 대화 생성 열린 질문 반영
+docs: 002 대화 생성 열린 질문 반영
 
 - 설문은 완료 시 한 번에 제출하도록 FR-1 수정
 - 진행중 대화가 있어도 새로 생성 가능 (AC-6 추가)
@@ -12,7 +12,7 @@ spec: 002 대화 생성 열린 질문 반영
 ```
 
 ```
-spec: 대화 API 명세 추가
+docs: 대화 API 명세 추가
 
 - POST /conversations, GET /conversations 추가
 - ConversationStatus, BackgroundSurvey 스키마 추가

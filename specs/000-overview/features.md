@@ -4,7 +4,7 @@
 
 | # | 기능 | 화면 | spec | plan | 상태 |
 |---|---|---|---|---|---|
-| 001 | 카카오 로그인·인증 (로그인, 토큰 재발급, 로그아웃, 탈퇴) | 스플래시, 설정 | [spec](../001-auth/spec.md) | — | Draft |
+| 001 | 카카오 로그인·인증 (로그인, 로그아웃, 탈퇴) | 스플래시, 설정 | [spec](../001-auth/spec.md) | — | Draft |
 | 002 | 대화 생성 (목표 등급 + 배경 설문) | 대화 생성 1~2 | [spec](../002-conversation-creation/spec.md) | — | Draft |
 | 003 | 대화 목록 | 홈 | [spec](../003-conversation-list/spec.md) | — | Draft |
 | 004 | 대화 진행 (질문 듣기, 음성 답변) | 대화 상세 1~2, 5 | [spec](../004-conversation-session/spec.md) | — | Draft |

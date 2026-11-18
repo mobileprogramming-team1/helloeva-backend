@@ -30,7 +30,7 @@ description: Hello Eva 스펙 문서끼리, 그리고 스펙과 API 계약(opena
 | A3 | plan.md 에러 코드 표와 `ErrorCode` enum이 일치 | plan.md ↔ openapi.yaml |
 | A4 | plan.md API 표와 openapi 경로가 일치 | plan.md ↔ openapi.yaml |
 | A5 | 필드·enum 이름이 용어집 영어 이름과 같다 | openapi.yaml ↔ `glossary.md` |
-| A6 | `api/README.md` 규칙 준수 (경로, 인증, 날짜, null 표기, 목록, 비동기) | openapi.yaml ↔ README |
+| A6 | `api/README.md` 규칙 준수 (경로, 인증, 날짜, null 표기, 목록, AI 동기 처리) | openapi.yaml ↔ README |
 | A7 | 모든 필드에 example이 있고 타입과 맞다 | openapi.yaml |
 | A8 | 인증 불필요 API에 `security: []`, 나머지는 bearerAuth | openapi.yaml ↔ spec 시나리오 |
 | A9 | Breaking Change가 표시되어 있다 | openapi.yaml git diff ↔ plan.md |

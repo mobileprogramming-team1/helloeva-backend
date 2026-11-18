@@ -26,10 +26,14 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 
 ### 인증
 - `Authorization: Bearer {accessToken}`
-- 토큰 재발급만 `Refresh-Token: {refreshToken}` 헤더 사용
+- 토큰은 액세스 토큰 하나뿐 (유효 기간 30일, 리프레시 토큰·재발급 없음)
 - 인증이 필요 없는 API는 `security: []`로 표시
 
 ### 요청·응답
+- **엔드포인트마다 전용 Request/Response 스키마**를 둡니다 (`{Action}{Resource}Request` / `{Action}{Resource}Response`). 다른 API의 응답 스키마를 재사용하지 않습니다
+  - 공유해도 되는 것: enum(`Grade`, `ConversationStatus` 등), `ErrorResponse`, 응답 안에 들어가는 작은 값 객체(`Answer`, `AreaScores` 등)
+  - 응답에는 그 화면·동작에 필요한 필드만 넣습니다
+- 요청 값 검증은 스키마에 명시합니다: 필수 여부(`required`), enum, 최소·최대 개수·길이
 - 필드 이름은 camelCase
 - 날짜·시간은 ISO-8601 문자열 (`2026-11-18T10:00:00+09:00`)
 - enum은 대문자 상수 (`IN_PROGRESS`, `IM3`). 값 목록은 [용어집](../specs/000-overview/glossary.md)과 맞춥니다
@@ -39,7 +43,7 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 ### 상태 코드
 | 코드 | 언제 |
 |---|---|
-| 200 | 조회·변경 성공 (본문 있음) |
+| 200 | 조회·변경 성공 (본문 있음). 로그인은 신규 가입이어도 200 (`isNewUser`로 구분) |
 | 201 | 생성 성공 |
 | 204 | 성공, 본문 없음 (로그아웃 등) |
 | 400 | 입력값 오류 |
@@ -47,6 +51,7 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 | 403 | 남의 리소스 |
 | 404 | 없음 |
 | 409 | 현재 상태에서 할 수 없음 (이미 답한 문항 등) |
+| 502 | 카카오 로그인 서버 오류 (서버가 대신 처리할 수 없는 경우만) |
 
 ### 에러 응답
 모든 에러는 같은 모양입니다. `code`로 분기하고 `message`는 화면에 보여줄 수 있는 한국어입니다.
@@ -63,15 +68,16 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 에러 코드를 추가하면 `openapi.yaml`의 `ErrorCode` 목록도 함께 고칩니다.
 
 ### 목록
-- 커서 기반: 요청 `?cursor=&size=20`, 응답 `{ items, nextCursor, hasNext, totalCount }` *(003에서 확정)*
+- 페이지 나누기 없이 전체를 줍니다: `{ totalCount, items }`. 데이터가 많아지면 그때 커서 방식으로 바꿉니다
 
-### 오래 걸리는 작업 (AI 피드백 등)
-- 요청은 바로 응답하고, 결과 리소스에 `status: PENDING | COMPLETED | FAILED`를 둡니다
-- 앱은 `COMPLETED`/`FAILED`가 될 때까지 조회 API를 폴링합니다 (권장 간격 2초)
+### 오래 걸리는 작업 (AI 처리)
+- 상태 관리·폴링 없이 동기로 처리합니다. 요청 안에서 끝까지 처리하고 결과를 바로 응답합니다
+- 응답까지 수 초~수십 초 걸릴 수 있으므로 앱 요청 타임아웃은 60초로 합니다
+- AI 호출이 실패하면 서버가 다시 시도합니다. 실패 상태나 재시도 API는 두지 않습니다
 
 ### 파일 (음성)
-- 업로드 방식은 004 plan에서 확정합니다 (multipart vs Presigned URL)
-- 응답에는 재생 가능한 URL을 줍니다. 만료가 있다면 `expiresAt`을 함께 줍니다
+- 업로드는 `multipart/form-data`로 직접 받습니다
+- 응답에는 재생 가능한 URL을 줍니다 (만료 없음)
 
 ### 호환성
 
