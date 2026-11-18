@@ -1,0 +1,31 @@
+### Build ###
+.gradle
+.kotlin
+build/
+!gradle/wrapper/gradle-wrapper.jar
+out/
+bin/
+
+### Secrets (절대 커밋 금지) ###
+.env
+*.env.local
+**/service-key*.json
+**/*-credentials.json
+src/main/resources/application-secret.yml
+
+### Runtime ###
+logs/
+*.log
+
+### IDE ###
+.idea
+*.iws
+*.iml
+*.ipr
+.vscode/
+
+### OS ###
+.DS_Store
+
+### Claude Code 개인 설정 ###
+.claude/settings.local.json

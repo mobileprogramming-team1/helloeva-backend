@@ -1,0 +1,134 @@
+openapi: 3.1.0
+info:
+  title: Hello Eva API
+  description: |
+    OPIc 말하기 연습 앱 Hello Eva의 API 계약서입니다.
+    작성 규칙은 api/README.md 를 따릅니다.
+    각 기능의 경로(paths)는 해당 스펙(specs/NNN-*/spec.md)이 Approved 된 뒤 plan 단계에서 추가합니다.
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: 로컬
+  # - url: https://api.example.com   # 개발/운영 서버 주소 확정 후 추가
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: 로그인·인증 (specs/001-auth)
+  - name: Conversation
+    description: 대화 생성·목록·진행 (specs/002, 003, 004)
+  - name: Feedback
+    description: 문항별·종합 피드백 (specs/005, 006)
+  - name: User
+    description: 내 정보·설정 (specs/007)
+
+paths: {}
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [status, code, message]
+      properties:
+        status:
+          type: integer
+          description: HTTP 상태 코드
+          example: 400
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: 사용자에게 보여줄 수 있는 메시지
+          example: 적절하지 않은 값입니다.
+        errors:
+          type: array
+          description: 입력값 오류일 때만 포함
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required: [field]
+      properties:
+        field:
+          type: string
+          example: targetGrade
+        message:
+          type: [string, 'null']
+          example: 필수 값입니다.
+
+    ErrorCode:
+      type: string
+      description: 기능 스펙이 확정될 때마다 추가합니다.
+      enum:
+        - INTERNAL_SERVER_ERROR
+        - INVALID_INPUT_VALUE
+        - INVALID_TYPE_VALUE
+        - MISSING_REQUEST_PARAMETER
+        - METHOD_NOT_ALLOWED
+        - NOT_FOUND
+        - UNAUTHORIZED
+        - ACCESS_DENIED
+      example: INVALID_INPUT_VALUE
+
+    Grade:
+      type: string
+      description: OPIc 등급. 낮은 순서 NL < NM < NH < IL < IM1 < IM2 < IM3 < IH < AL
+      enum: [NL, NM, NH, IL, IM1, IM2, IM3, IH, AL]
+      example: IM3
+
+    ConversationStatus:
+      type: string
+      enum: [IN_PROGRESS, COMPLETED]
+      example: IN_PROGRESS
+
+    GenerationStatus:
+      type: string
+      description: AI 생성 작업의 상태. COMPLETED/FAILED가 될 때까지 폴링합니다.
+      enum: [PENDING, COMPLETED, FAILED]
+      example: PENDING
+
+  responses:
+    BadRequest:
+      description: 입력값 오류
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 인증 없음·만료
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: 401
+            code: UNAUTHORIZED
+            message: 인증이 필요합니다.
+    Forbidden:
+      description: 다른 사용자의 리소스
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 리소스 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 현재 상태에서 할 수 없는 요청
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
