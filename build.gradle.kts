@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(platform(libs.google.cloud.bom))
     implementation(libs.google.cloud.storage)
+    implementation(libs.google.genai)
     implementation(libs.jjwt.api)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)

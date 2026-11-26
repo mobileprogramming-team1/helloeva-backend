@@ -35,8 +35,12 @@ gcp:
   project-id: helloeva-a5e901
   storage:
     bucket: helloeva-a5e901-audio
+  vertex:
+    location: global
 
 ai:
+  gemini:
+    model: gemini-3.1-flash-lite
   pricing:
     gemini-input-per-million-tokens: 0.25
     gemini-output-per-million-tokens: 1.50
