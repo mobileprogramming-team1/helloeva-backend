@@ -41,6 +41,9 @@ gcp:
 ai:
   gemini:
     model: gemini-3.1-flash-lite
+  tts:
+    language-code: en-US
+    voice-name: en-US-Wavenet-F
   pricing:
     gemini-input-per-million-tokens: 0.25
     gemini-output-per-million-tokens: 1.50

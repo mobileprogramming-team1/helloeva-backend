@@ -22,6 +22,7 @@ jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
 jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 google-cloud-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-cloud-bom" }
 google-cloud-storage = { module = "com.google.cloud:google-cloud-storage" }
+google-cloud-texttospeech = { module = "com.google.cloud:google-cloud-texttospeech" }
 google-genai = { module = "com.google.genai:google-genai", version.ref = "google-genai" }
 
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
