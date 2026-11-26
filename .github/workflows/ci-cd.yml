@@ -1,0 +1,93 @@
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'api/**'
+      - 'infra/terraform/**'
+      - 'infra/nginx/**'
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SERVER_HOST: 8.230.12.129
+  SERVER_USER: helloeva
+  APP_DIR: /home/helloeva/app
+  JAR_NAME: helloeva-backend-0.0.1-SNAPSHOT.jar
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Test and build jar
+        run: ./gradlew test bootJar
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-jar
+          path: build/libs/${{ env.JAR_NAME }}
+          retention-days: 1
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report
+          path: build/reports/tests/test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency: deploy
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-jar
+          path: build/libs
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload files
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key $SERVER_USER@$SERVER_HOST"
+          $SSH "mkdir -p $APP_DIR/build/libs"
+          scp -i ~/.ssh/deploy_key Dockerfile .dockerignore infra/docker-compose.yml "$SERVER_USER@$SERVER_HOST:$APP_DIR/"
+          scp -i ~/.ssh/deploy_key "build/libs/$JAR_NAME" "$SERVER_USER@$SERVER_HOST:$APP_DIR/build/libs/"
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SERVER_USER@$SERVER_HOST" "
+            set -e
+            cd $APP_DIR
+            sudo docker build -t helloeva-backend:latest .
+            sudo docker compose up -d
+            sudo docker image prune -f
+            for i in \$(seq 1 30); do
+              curl -s -o /dev/null http://127.0.0.1:8080/ && echo 'app is up' && exit 0
+              sleep 3
+            done
+            sudo docker logs --tail 50 helloeva-app
+            exit 1
+          "

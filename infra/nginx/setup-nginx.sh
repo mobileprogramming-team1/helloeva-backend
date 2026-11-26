@@ -8,7 +8,7 @@ APP_HOST="$(curl -s -H 'Metadata-Flavor: Google' \
 sudo apt-get update -y
 sudo apt-get install -y nginx certbot python3-certbot-nginx
 
-sed "s/__APP_HOST__/${APP_HOST}/" "$(dirname "$0")/nginx/helloeva.conf" | sudo tee /etc/nginx/sites-available/helloeva > /dev/null
+sed "s/__APP_HOST__/${APP_HOST}/" "$(dirname "$0")/helloeva.conf" | sudo tee /etc/nginx/sites-available/helloeva > /dev/null
 sudo ln -sf /etc/nginx/sites-available/helloeva /etc/nginx/sites-enabled/helloeva
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
