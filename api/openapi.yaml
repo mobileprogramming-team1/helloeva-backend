@@ -43,8 +43,8 @@ info:
   version: 0.1.0
 
 servers:
-  - url: /
-    description: 서버 주소 미정 (배포 후 추가)
+  - url: https://8-230-12-129.sslip.io
+    description: 개발 서버
 
 security:
   - bearerAuth: []

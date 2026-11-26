@@ -29,7 +29,6 @@ dependencies {
     implementation(libs.flyway.mysql)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
-    implementation(libs.springdoc.webmvc.ui)
     implementation(libs.jjwt.api)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)

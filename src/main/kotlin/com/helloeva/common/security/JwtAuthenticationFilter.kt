@@ -15,7 +15,11 @@ class JwtAuthenticationFilter(
     private val jwtTokenProvider: JwtTokenProvider,
     private val userRepository: UserRepository,
     private val errorResponseWriter: ErrorResponseWriter,
+    private val publicPaths: Array<String>,
 ) : OncePerRequestFilter() {
+
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
+        request.requestURI in publicPaths
 
     override fun doFilterInternal(
         request: HttpServletRequest,

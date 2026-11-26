@@ -9,10 +9,12 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableWebSecurity
@@ -24,35 +26,45 @@ class SecurityConfig(
 ) {
 
     @Bean
-    fun webSecurityCustomizer(): WebSecurityCustomizer =
-        WebSecurityCustomizer { web ->
-            web.ignoring().requestMatchers(*PUBLIC_PATHS)
-        }
-
-    @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         http
             .csrf { it.disable() }
+            .cors { it.configurationSource(corsConfigurationSource()) }
             .formLogin { it.disable() }
             .httpBasic { it.disable() }
             .logout { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .authorizeHttpRequests { it.anyRequest().authenticated() }
+            .authorizeHttpRequests {
+                it.requestMatchers(*PUBLIC_PATHS).permitAll()
+                    .anyRequest().authenticated()
+            }
             .exceptionHandling { it.authenticationEntryPoint(authenticationEntryPoint) }
             .addFilterBefore(
-                JwtAuthenticationFilter(jwtTokenProvider, userRepository, errorResponseWriter),
+                JwtAuthenticationFilter(jwtTokenProvider, userRepository, errorResponseWriter, PUBLIC_PATHS),
                 UsernamePasswordAuthenticationFilter::class.java,
             )
 
         return http.build()
     }
 
+    @Bean
+    fun corsConfigurationSource(): CorsConfigurationSource {
+        val config = CorsConfiguration().apply {
+            allowedOrigins = listOf(API_DOCS_ORIGIN)
+            allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+            allowedHeaders = listOf("Authorization", "Content-Type")
+            maxAge = 3600
+        }
+        return UrlBasedCorsConfigurationSource().apply {
+            registerCorsConfiguration("/**", config)
+        }
+    }
+
     companion object {
+        private const val API_DOCS_ORIGIN = "https://mobileprogramming-team1.github.io"
+
         private val PUBLIC_PATHS = arrayOf(
             "/auth/login",
-            "/swagger-ui.html",
-            "/swagger-ui/**",
-            "/v3/api-docs/**",
             "/error",
         )
     }

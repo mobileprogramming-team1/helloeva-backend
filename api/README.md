@@ -12,9 +12,9 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 | 단계 | 방법 |
 |---|---|
 | 작성 | 백엔드가 `openapi.yaml`을 작성·수정합니다 |
-| 보기 | 웹 문서 링크 *(공유 방법 설정 예정)*. 그 전에는 [editor.swagger.io](https://editor.swagger.io)에 파일을 붙여넣어 봅니다 |
+| 보기·테스트 | GitHub Pages 문서. Authorize에 액세스 토큰을 넣고 Try it out으로 개발 서버를 바로 호출합니다 |
 | 먼저 개발 | `npx @stoplight/prism-cli mock api/openapi.yaml` → example 값을 돌려주는 가짜 서버 |
-| 구현 확인 | 서버의 Swagger UI (`/swagger-ui.html`). 명세와 다르면 구현을 고칩니다 |
+| 구현 확인 | GitHub Pages 문서에서 개발 서버를 호출해 봅니다. 명세와 다르면 구현을 고칩니다 |
 | 변경 알림 | 명세가 바뀌면 팀 채널에 바뀐 엔드포인트와 Breaking Change 여부를 공유 |
 
 ## 작성 규칙

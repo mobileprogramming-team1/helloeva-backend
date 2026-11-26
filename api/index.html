@@ -7,8 +7,6 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.1/swagger-ui.css">
   <style>
     body { margin: 0; background: #fff; }
-    /* 서버 배포 전까지 테스트용 인증 버튼 숨김 */
-    .swagger-ui .auth-wrapper { display: none; }
   </style>
 </head>
 <body>
@@ -21,8 +19,7 @@
       deepLinking: true,
       docExpansion: 'list',
       defaultModelsExpandDepth: 0,
-      // 서버 배포 전까지 Try it out 비활성화
-      supportedSubmitMethods: []
+      persistAuthorization: true
     });
   </script>
 </body>

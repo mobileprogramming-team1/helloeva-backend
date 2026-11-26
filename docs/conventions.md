@@ -76,7 +76,7 @@ com.helloeva
 | 프레임워크 | Spring Boot (Spring Framework 7, Jackson 3) | 4.1.x |
 | 데이터 | MySQL, Spring Data JPA, Flyway | MySQL 8.4 |
 | 인증 | Spring Security + JWT (jjwt), Kakao 로그인 | jjwt 0.13.x |
-| 문서 | `api/openapi.yaml` (명세), springdoc (Swagger UI) | springdoc 3.x |
+| 문서 | `api/openapi.yaml` (명세, GitHub Pages에서 Swagger UI로 보기·테스트) | — |
 | 테스트 | JUnit 5, Testcontainers | Boot 관리 버전 |
 | 빌드/CI | Gradle (version catalog), GitHub Actions | Gradle 9.x |
 
