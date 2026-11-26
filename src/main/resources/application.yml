@@ -7,6 +7,10 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          json_format_mapper: jackson3
   flyway:
     enabled: true
     locations: classpath:db/migration
