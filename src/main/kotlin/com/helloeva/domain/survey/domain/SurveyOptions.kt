@@ -1,6 +1,7 @@
 package com.helloeva.domain.survey.domain
 
 interface SurveyOption {
+    val name: String
     val label: String
 }
 
