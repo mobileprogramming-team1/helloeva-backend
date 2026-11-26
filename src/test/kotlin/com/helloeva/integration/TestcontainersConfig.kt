@@ -1,7 +1,13 @@
 package com.helloeva.integration
 
+import com.helloeva.integration.fake.FakeFileStorage
 import com.helloeva.integration.fake.FakeOauthClient
+import com.helloeva.integration.fake.FakeQuestionGenerator
+import com.helloeva.integration.fake.FakeTextToSpeech
 import com.helloeva.integration.oauth.application.OauthClient
+import com.helloeva.integration.question.application.QuestionGenerator
+import com.helloeva.integration.speech.application.TextToSpeech
+import com.helloeva.integration.storage.application.FileStorage
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.context.annotation.Bean
@@ -18,4 +24,16 @@ class TestcontainersConfig {
     @Bean
     @Primary
     fun fakeOauthClient(): OauthClient = FakeOauthClient()
+
+    @Bean
+    @Primary
+    fun fakeQuestionGenerator(): QuestionGenerator = FakeQuestionGenerator()
+
+    @Bean
+    @Primary
+    fun fakeTextToSpeech(): TextToSpeech = FakeTextToSpeech()
+
+    @Bean
+    @Primary
+    fun fakeFileStorage(): FileStorage = FakeFileStorage()
 }

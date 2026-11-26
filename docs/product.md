@@ -62,9 +62,13 @@ flowchart LR
 | 006 | 종합 피드백 | 대화 상세 6~8 | [006-overall-feedback](features/006-overall-feedback.md) |
 | 007 | 내 정보·설정 | 설정 | [007-user-settings](features/007-user-settings.md) |
 
+## 결정된 것
+
+- 질문 생성 방식: 대화를 만들 때마다 AI(Gemini)로 생성
+- AI 제공자: 질문 생성·평가 Gemini(Vertex AI), 음성 합성 Cloud Text-to-Speech, 음성 인식 Cloud Speech-to-Text
+- 음성 파일 저장소: Google Cloud Storage (공개 읽기)
+
 ## 아직 정하지 않은 것
 
-- [ ] 질문 생성 방식: AI 생성 vs 문제은행 vs 혼합
-- [ ] AI 제공자: 음성 합성(TTS), 음성 인식(STT), 평가(LLM)
-- [ ] 음성 파일 저장소와 보관 기간
+- [ ] 음성 파일 보관 기간
 - [ ] 프론트 스택 (API 코드 생성 여부 결정용)
