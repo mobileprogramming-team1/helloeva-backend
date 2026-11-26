@@ -13,6 +13,14 @@ bin/
 **/*-credentials.json
 src/main/resources/application-secret.yml
 
+### Terraform ###
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+tfplan
+
 ### Runtime ###
 logs/
 *.log
