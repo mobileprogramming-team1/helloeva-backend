@@ -7,6 +7,7 @@ import io.jsonwebtoken.JwtException
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.stereotype.Component
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Date
@@ -23,6 +24,7 @@ class JwtTokenProvider(
         return Jwts.builder()
             .subject(userId.toString())
             .issuedAt(now)
+            .claim(ISSUED_AT_MILLIS, now.time)
             .expiration(Date(now.time + properties.accessTokenValidity.toMillis()))
             .signWith(key)
             .compact()
@@ -40,11 +42,16 @@ class JwtTokenProvider(
         }
 
         val userId = claims.subject?.toLongOrNull() ?: throw CustomException(ErrorCode.INVALID_TOKEN)
-        val issuedAt = claims.issuedAt ?: throw CustomException(ErrorCode.INVALID_TOKEN)
+        val issuedAtMillis = (claims[ISSUED_AT_MILLIS] as? Number)?.toLong()
+            ?: throw CustomException(ErrorCode.INVALID_TOKEN)
 
         return TokenClaims(
             userId = userId,
-            issuedAt = LocalDateTime.ofInstant(issuedAt.toInstant(), ZoneId.systemDefault()),
+            issuedAt = LocalDateTime.ofInstant(Instant.ofEpochMilli(issuedAtMillis), ZoneId.systemDefault()),
         )
+    }
+
+    companion object {
+        private const val ISSUED_AT_MILLIS = "iatMs"
     }
 }
