@@ -15,7 +15,7 @@ integration/
 ├── storage/     application/FileStorage
 └── oauth/       application/OauthClient                    infrastructure/KakaoOauthClient
 ```
-(이름은 예시. 실제 이름은 해당 기능의 plan.md가 정한다.)
+(이름은 예시. 실제 이름은 구현할 때 정한다.)
 
 ## 새 제공자 추가/교체 절차
 1. 해당 역할의 인터페이스가 `integration/<역할>/application/`에 있는지 확인한다. 있으면 새로 만들지 않는다.
@@ -25,7 +25,7 @@ integration/
 5. 상위 컴포넌트는 **인터페이스 타입으로만** 의존한다. 구현체 클래스를 import하지 않는다.
 6. 교체(완전 대체)인지 병행(`@Primary`/프로필로 선택)인지 먼저 정하고 등록한다.
 7. 테스트용 가짜 구현체(`Fake<역할>`)를 `src/test`에 둔다. 통합 테스트가 실제 AI를 부르지 않게 하기 위해서다.
-8. 선택한 제공자와 이유는 해당 기능 plan.md의 설계 결정(ADR)에 남긴다.
+8. 선택한 제공자는 `docs/conventions.md`의 기술 스택 표에 추가한다.
 
 ## 하지 말 것
 - 무관한 기능을 기존 인터페이스에 억지로 끼워 넣기

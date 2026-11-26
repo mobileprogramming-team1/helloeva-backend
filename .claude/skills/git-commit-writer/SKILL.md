@@ -11,9 +11,9 @@ description: Hello Eva 백엔드의 커밋 메시지를 프로젝트 컨벤션�
 ## 메시지 형식
 - 제목: `<type>: <한 줄 요약>`
   - Conventional Commits 기본 타입만 쓴다: `feat` / `fix` / `docs` / `refactor` / `test` / `chore` / `style` / `perf` / `build` / `ci`
-  - `specs/`, `api/openapi.yaml` 등 문서만 바꾼 커밋은 `docs`
+  - `docs/`, `api/openapi.yaml` 등 문서만 바꾼 커밋은 `docs`
 - 대부분 빈 줄 하나 뒤에 **개조식 불릿 본문**으로 무엇을 바꿨는지 나열. 사소한 변경만 제목 한 줄
-- 관련 스펙이 있으면 본문 마지막 불릿에 `specs/NNN-*` 와 AC 번호를 적는다
+- 관련 기능이 있으면 본문 마지막 불릿에 `docs/features/NNN-*` 와 AC 번호를 적는다
 - `api/openapi.yaml`이 바뀌면 바뀐 엔드포인트와 Breaking Change 여부를 본문에 적는다 (프론트 공유용 요약으로 그대로 씀)
 
 ## 쓰지 않는 것

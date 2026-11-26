@@ -1,6 +1,5 @@
 # 제품 개요
 
-- 상태: Draft
 - 디자인: 팀 Figma 와이어프레임 (링크는 팀 채널 참고)
 
 ## 한 줄 소개
@@ -50,3 +49,22 @@ flowchart LR
 - 결제/유료 기능
 - 카카오 외 소셜 로그인
 - 웹 버전
+
+## 기능 목록
+
+| # | 기능 | 화면 | 문서 |
+|---|---|---|---|
+| 001 | 카카오 로그인·인증 (로그인, 로그아웃, 탈퇴) | 스플래시, 설정 | [001-auth](features/001-auth.md) |
+| 002 | 대화 생성 (목표 등급 + 배경 설문) | 대화 생성 1~2 | [002-conversation-creation](features/002-conversation-creation.md) |
+| 003 | 대화 목록 | 홈 | [003-conversation-list](features/003-conversation-list.md) |
+| 004 | 대화 진행 (질문 듣기, 음성 답변) | 대화 상세 1~2, 5 | [004-conversation-session](features/004-conversation-session.md) |
+| 005 | 문항별 피드백 | 대화 상세 3~4 | [005-question-feedback](features/005-question-feedback.md) |
+| 006 | 종합 피드백 | 대화 상세 6~8 | [006-overall-feedback](features/006-overall-feedback.md) |
+| 007 | 내 정보·설정 | 설정 | [007-user-settings](features/007-user-settings.md) |
+
+## 아직 정하지 않은 것
+
+- [ ] 질문 생성 방식: AI 생성 vs 문제은행 vs 혼합
+- [ ] AI 제공자: 음성 합성(TTS), 음성 인식(STT), 평가(LLM)
+- [ ] 음성 파일 저장소와 보관 기간
+- [ ] 프론트 스택 (API 코드 생성 여부 결정용)

@@ -5,7 +5,7 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 ## 작성과 공유 흐름
 
 ```
-피그마 화면·스펙 → openapi.yaml 작성 → main 반영 → 문서 링크 공유
+피그마 화면·기능 문서 → openapi.yaml 작성 → main 반영 → 문서 링크 공유
                 → (선택) 프론트는 Mock 서버로 먼저 개발 → 백엔드 구현
 ```
 
@@ -36,7 +36,7 @@ API 명세는 **[openapi.yaml](./openapi.yaml) 하나**입니다. 백엔드가 �
 - 요청 값 검증은 스키마에 명시합니다: 필수 여부(`required`), enum, 최소·최대 개수·길이
 - 필드 이름은 camelCase
 - 날짜·시간은 ISO-8601 문자열 (`2026-11-18T10:00:00+09:00`)
-- enum은 대문자 상수 (`IN_PROGRESS`, `IM3`). 값 목록은 [용어집](../specs/000-overview/glossary.md)과 맞춥니다
+- enum은 대문자 상수 (`IN_PROGRESS`, `IM3`). 값 목록은 [용어집](../docs/glossary.md)과 맞춥니다
 - 비어 있을 수 있는 필드는 `type: [string, 'null']`처럼 명시합니다 (OpenAPI 3.1 문법). 목록은 null 대신 `[]`
 - 모든 스키마에 `example`을 적습니다 (Mock 서버와 문서에 그대로 쓰입니다)
 
