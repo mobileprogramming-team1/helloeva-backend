@@ -30,3 +30,10 @@ jwt:
 kakao:
   api:
     base-url: https://kapi.kakao.com
+
+ai:
+  pricing:
+    gemini-input-per-million-tokens: 0.25
+    gemini-output-per-million-tokens: 1.50
+    tts-per-million-characters: 4.00
+    stt-per-minute: 0.016

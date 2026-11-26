@@ -4,6 +4,9 @@ resource "google_project_service" "apis" {
     "sqladmin.googleapis.com",
     "storage.googleapis.com",
     "iam.googleapis.com",
+    "aiplatform.googleapis.com",
+    "texttospeech.googleapis.com",
+    "speech.googleapis.com",
   ])
   service            = each.key
   disable_on_destroy = false
