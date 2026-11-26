@@ -28,6 +28,9 @@ dependencies {
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
     implementation(libs.springdoc.webmvc.ui)
+    implementation(libs.jjwt.api)
+    runtimeOnly(libs.jjwt.impl)
+    runtimeOnly(libs.jjwt.jackson)
     runtimeOnly(libs.mysql.connector)
 
     testImplementation(libs.spring.boot.starter.test)

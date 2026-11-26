@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 @Entity
 @Table(name = "users")
@@ -41,7 +42,7 @@ class User(
         get() = status == UserStatus.ACTIVE
 
     fun logout(now: LocalDateTime = LocalDateTime.now()) {
-        loggedOutAt = now
+        loggedOutAt = now.truncatedTo(ChronoUnit.SECONDS)
     }
 
     fun withdraw(now: LocalDateTime = LocalDateTime.now()) {
@@ -50,5 +51,5 @@ class User(
     }
 
     fun isTokenRevoked(issuedAt: LocalDateTime): Boolean =
-        !isActive || loggedOutAt?.let { !issuedAt.isAfter(it) } == true
+        !isActive || loggedOutAt?.let { issuedAt.isBefore(it) } == true
 }
