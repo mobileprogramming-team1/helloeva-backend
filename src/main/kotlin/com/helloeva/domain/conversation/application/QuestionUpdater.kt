@@ -6,15 +6,11 @@ import org.springframework.transaction.annotation.Transactional
 
 @Component
 class QuestionUpdater(
-    private val conversationReader: ConversationReader,
-    private val conversationValidator: ConversationValidator,
+    private val currentQuestionReader: CurrentQuestionReader,
 ) {
     @Transactional
     fun replay(conversationId: Long, userId: Long, questionNumber: Int): Question {
-        val conversation = conversationReader.getConversation(conversationId)
-        conversationValidator.validateOwner(conversation, userId)
-        val question = conversationReader.getQuestion(conversation.id, questionNumber)
-        conversationValidator.validateCurrentTurn(conversation.id, questionNumber)
+        val question = currentQuestionReader.getCurrentQuestion(conversationId, userId, questionNumber).question
         question.replay()
         return question
     }

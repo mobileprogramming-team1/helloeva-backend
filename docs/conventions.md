@@ -36,6 +36,10 @@ com.helloeva
 ```
 
 - Service는 흐름만 조합하고, 실제 조회·변경은 `XxxReader`, `XxxCreator`, `XxxUpdater`, `XxxDeleter`에 둡니다.
+  - Service의 각 줄은 컴포넌트 호출이고, 클래스명·메서드명만 읽어도 무슨 일이 일어나는지 알 수 있어야 합니다.
+  - Service에 두지 않는 것: 예외 잡기(try/catch), 업무 분기(if·조기 return으로 갈라지는 흐름), 반복·데이터 가공, DB·웹 전용 타입(`MultipartFile`, `DataIntegrityViolationException` 등).
+  - 분기가 필요한 흐름은 이름으로 드러나는 컴포넌트 메서드로 뺍니다. 예: `getOrCreateUser`, `getOrGenerate`.
+  - 응답 조립은 응답 DTO의 `of()`/`from()`에 둡니다.
 - 엔티티 자기 데이터만으로 판단하는 규칙(상태 전이, 다시 듣기 횟수 등)은 엔티티 메서드에 둡니다.
 - 소유자 확인과 다른 데이터를 조회해야 하는 검증(문항 차례 등)은 application의 `XxxValidator`에 둡니다.
 - 외부 서비스(AI, Kakao, 스토리지)는 `integration/`의 인터페이스 뒤에 숨깁니다. 도메인은 구현체를 모릅니다.

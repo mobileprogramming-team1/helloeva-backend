@@ -1,7 +1,6 @@
 package com.helloeva.domain.conversation.presentation
 
 import com.helloeva.common.security.LoginUser
-import com.helloeva.domain.conversation.application.AnswerAudio
 import com.helloeva.domain.conversation.application.AnswerService
 import com.helloeva.domain.conversation.application.ConversationService
 import com.helloeva.domain.conversation.application.CreateConversationCommand
@@ -57,7 +56,7 @@ class ConversationController(
         @PathVariable questionNumber: Int,
         @RequestPart("audio", required = false) audio: MultipartFile?,
     ): SubmitAnswerResponse =
-        answerService.submit(conversationId, userId, questionNumber, AnswerAudio.from(audio))
+        answerService.submit(conversationId, userId, questionNumber, audio.toAnswerAudio())
 
     @GetMapping
     fun getConversations(

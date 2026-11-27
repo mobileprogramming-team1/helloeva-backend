@@ -1,13 +1,10 @@
 package com.helloeva.domain.conversation.application
 
-import com.helloeva.common.exception.CustomException
-import com.helloeva.common.exception.ErrorCode
 import com.helloeva.domain.conversation.domain.Answer
 import com.helloeva.domain.conversation.domain.Question
 import com.helloeva.domain.conversation.domain.QuestionFeedback
 import com.helloeva.domain.conversation.infrastructure.AnswerRepository
 import com.helloeva.domain.conversation.infrastructure.QuestionFeedbackRepository
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
@@ -19,19 +16,15 @@ class AnswerCreator(
 ) {
     @Transactional
     fun create(question: Question, analysis: AnswerAnalysis, audioUrl: String): Pair<Answer, QuestionFeedback> {
-        val answer = try {
-            answerRepository.saveAndFlush(
-                Answer(
-                    question = question,
-                    transcript = analysis.transcription.transcript,
-                    audioUrl = audioUrl,
-                    durationSeconds = analysis.transcription.durationSeconds,
-                    answeredAt = LocalDateTime.now(),
-                ),
-            )
-        } catch (e: DataIntegrityViolationException) {
-            throw CustomException(ErrorCode.QUESTION_ALREADY_ANSWERED)
-        }
+        val answer = answerRepository.save(
+            Answer(
+                question = question,
+                transcript = analysis.transcription.transcript,
+                audioUrl = audioUrl,
+                durationSeconds = analysis.transcription.durationSeconds,
+                answeredAt = LocalDateTime.now(),
+            ),
+        )
         val evaluation = analysis.evaluation
         val feedback = questionFeedbackRepository.save(
             QuestionFeedback(
