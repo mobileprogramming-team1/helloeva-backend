@@ -6,7 +6,7 @@ resource "google_compute_address" "app" {
 
 resource "google_compute_instance" "app" {
   name                      = "helloeva-app"
-  machine_type              = "e2-micro"
+  machine_type              = "e2-small"
   zone                      = var.zone
   tags                      = ["helloeva-vm"]
   allow_stopping_for_update = true

@@ -3,6 +3,10 @@ spring:
     name: helloeva-backend
   profiles:
     default: local
+  datasource:
+    hikari:
+      max-lifetime: 300000
+      keepalive-time: 120000
   jpa:
     open-in-view: false
     hibernate:
