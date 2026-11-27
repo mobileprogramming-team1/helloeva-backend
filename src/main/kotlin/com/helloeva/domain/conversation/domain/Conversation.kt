@@ -1,8 +1,6 @@
 package com.helloeva.domain.conversation.domain
 
 import com.helloeva.common.domain.BaseEntity
-import com.helloeva.common.exception.CustomException
-import com.helloeva.common.exception.ErrorCode
 import com.helloeva.domain.survey.domain.BackgroundSurvey
 import com.helloeva.domain.user.domain.User
 import jakarta.persistence.CascadeType
@@ -57,18 +55,11 @@ class Conversation(
     val isCompleted: Boolean
         get() = status == ConversationStatus.COMPLETED
 
-    fun validateOwner(userId: Long) {
-        if (user.id != userId) throw CustomException(ErrorCode.NOT_CONVERSATION_OWNER)
-    }
-
     fun complete() {
         status = ConversationStatus.COMPLETED
     }
 
     companion object {
         const val TOTAL_QUESTION_COUNT = 15
-
-        fun currentQuestionNumber(answeredQuestionNumbers: Set<Int>): Int? =
-            (1..TOTAL_QUESTION_COUNT).firstOrNull { it !in answeredQuestionNumbers }
     }
 }

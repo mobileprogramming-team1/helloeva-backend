@@ -35,15 +35,15 @@ data class ConversationDetailResponse(
             questions: List<Question>,
             answersByQuestionId: Map<Long, Answer>,
             feedbacksByAnswerId: Map<Long, QuestionFeedback>,
-        ): ConversationDetailResponse {
-            val answeredNumbers = questions.filter { it.id in answersByQuestionId }.map { it.questionNumber }.toSet()
-            return ConversationDetailResponse(
+            currentQuestionNumber: Int?,
+        ): ConversationDetailResponse =
+            ConversationDetailResponse(
                 conversationId = conversation.id,
                 round = conversation.round,
                 targetGrade = conversation.targetGrade,
                 status = conversation.status,
                 totalQuestionCount = Conversation.TOTAL_QUESTION_COUNT,
-                currentQuestionNumber = Conversation.currentQuestionNumber(answeredNumbers),
+                currentQuestionNumber = currentQuestionNumber,
                 questions = questions.map { question ->
                     val answer = answersByQuestionId[question.id]
                     val feedback = answer?.let { feedbacksByAnswerId[it.id] }
@@ -59,6 +59,5 @@ data class ConversationDetailResponse(
                 },
                 createdAt = conversation.createdAt!!.toSeoulOffset(),
             )
-        }
     }
 }

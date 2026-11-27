@@ -35,6 +35,14 @@ class ConversationController(
     ): ConversationDetailResponse =
         conversationService.getConversation(conversationId, userId)
 
+    @PostMapping("/{conversationId}/questions/{questionNumber}/replay")
+    fun replay(
+        @LoginUser userId: Long,
+        @PathVariable conversationId: Long,
+        @PathVariable questionNumber: Int,
+    ): ReplayResponse =
+        conversationService.replay(conversationId, userId, questionNumber)
+
     @GetMapping
     fun getConversations(
         @LoginUser userId: Long,

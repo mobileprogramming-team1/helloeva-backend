@@ -4,6 +4,7 @@ import com.helloeva.domain.conversation.domain.ConversationStatus
 import com.helloeva.domain.conversation.presentation.ConversationDetailResponse
 import com.helloeva.domain.conversation.presentation.ConversationListResponse
 import com.helloeva.domain.conversation.presentation.CreateConversationResponse
+import com.helloeva.domain.conversation.presentation.ReplayResponse
 import com.helloeva.domain.feedback.application.OverallFeedbackReader
 import com.helloeva.domain.usage.application.ApiUsageRecorder
 import com.helloeva.integration.question.application.QuestionGenerator
@@ -17,6 +18,8 @@ class ConversationService(
     private val apiUsageRecorder: ApiUsageRecorder,
     private val conversationReader: ConversationReader,
     private val overallFeedbackReader: OverallFeedbackReader,
+    private val questionUpdater: QuestionUpdater,
+    private val conversationValidator: ConversationValidator,
 ) {
     fun create(command: CreateConversationCommand): CreateConversationResponse {
         val generated = questionGenerator.generate(command.targetGrade, command.backgroundSurvey)
@@ -29,14 +32,19 @@ class ConversationService(
     }
 
     fun getConversation(conversationId: Long, userId: Long): ConversationDetailResponse {
-        val conversation = conversationReader.getOwnedConversation(conversationId, userId)
+        val conversation = conversationReader.getConversation(conversationId)
+        conversationValidator.validateOwner(conversation, userId)
         return ConversationDetailResponse.of(
             conversation = conversation,
             questions = conversationReader.findQuestions(conversationId),
             answersByQuestionId = conversationReader.findAnswersByQuestionId(conversationId),
             feedbacksByAnswerId = conversationReader.findFeedbacksByAnswerId(conversationId),
+            currentQuestionNumber = conversationReader.findCurrentQuestionNumber(conversationId),
         )
     }
+
+    fun replay(conversationId: Long, userId: Long, questionNumber: Int): ReplayResponse =
+        ReplayResponse.from(questionUpdater.replay(conversationId, userId, questionNumber))
 
     fun getConversations(userId: Long, status: ConversationStatus?): ConversationListResponse {
         val conversations = conversationReader.findAllByUser(userId, status)

@@ -22,11 +22,20 @@ class ConversationReader(
     private val answerRepository: AnswerRepository,
     private val questionFeedbackRepository: QuestionFeedbackRepository,
 ) {
-    fun getOwnedConversation(conversationId: Long, userId: Long): Conversation {
-        val conversation = conversationRepository.findById(conversationId)
+    fun getConversation(conversationId: Long): Conversation =
+        conversationRepository.findById(conversationId)
             .orElseThrow { CustomException(ErrorCode.CONVERSATION_NOT_FOUND) }
-        conversation.validateOwner(userId)
-        return conversation
+
+    fun getQuestion(conversationId: Long, questionNumber: Int): Question =
+        questionRepository.findByConversationIdAndQuestionNumber(conversationId, questionNumber)
+            ?: throw CustomException(ErrorCode.QUESTION_NOT_FOUND)
+
+    fun findAnsweredQuestionNumbers(conversationId: Long): Set<Int> =
+        answerRepository.findAnsweredQuestionNumbers(conversationId).toSet()
+
+    fun findCurrentQuestionNumber(conversationId: Long): Int? {
+        val answeredNumbers = findAnsweredQuestionNumbers(conversationId)
+        return (1..Conversation.TOTAL_QUESTION_COUNT).firstOrNull { it !in answeredNumbers }
     }
 
     fun findQuestions(conversationId: Long): List<Question> =
