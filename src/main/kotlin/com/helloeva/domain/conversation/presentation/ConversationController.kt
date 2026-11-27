@@ -7,6 +7,7 @@ import com.helloeva.domain.conversation.domain.ConversationStatus
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -26,6 +27,13 @@ class ConversationController(
         @Valid @RequestBody request: CreateConversationRequest,
     ): CreateConversationResponse =
         conversationService.create(CreateConversationCommand.of(userId, request))
+
+    @GetMapping("/{conversationId}")
+    fun getConversation(
+        @LoginUser userId: Long,
+        @PathVariable conversationId: Long,
+    ): ConversationDetailResponse =
+        conversationService.getConversation(conversationId, userId)
 
     @GetMapping
     fun getConversations(

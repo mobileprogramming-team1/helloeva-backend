@@ -1,6 +1,7 @@
 package com.helloeva.domain.conversation.application
 
 import com.helloeva.domain.conversation.domain.ConversationStatus
+import com.helloeva.domain.conversation.presentation.ConversationDetailResponse
 import com.helloeva.domain.conversation.presentation.ConversationListResponse
 import com.helloeva.domain.conversation.presentation.CreateConversationResponse
 import com.helloeva.domain.feedback.application.OverallFeedbackReader
@@ -25,6 +26,16 @@ class ConversationService(
         apiUsageRecorder.record(conversation.id, listOf(generated.usage) + questionAudios.map { it.usage })
 
         return CreateConversationResponse(conversation.id)
+    }
+
+    fun getConversation(conversationId: Long, userId: Long): ConversationDetailResponse {
+        val conversation = conversationReader.getOwnedConversation(conversationId, userId)
+        return ConversationDetailResponse.of(
+            conversation = conversation,
+            questions = conversationReader.findQuestions(conversationId),
+            answersByQuestionId = conversationReader.findAnswersByQuestionId(conversationId),
+            feedbacksByAnswerId = conversationReader.findFeedbacksByAnswerId(conversationId),
+        )
     }
 
     fun getConversations(userId: Long, status: ConversationStatus?): ConversationListResponse {

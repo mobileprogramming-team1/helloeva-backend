@@ -64,4 +64,11 @@ class Conversation(
     fun complete() {
         status = ConversationStatus.COMPLETED
     }
+
+    companion object {
+        const val TOTAL_QUESTION_COUNT = 15
+
+        fun currentQuestionNumber(answeredQuestionNumbers: Set<Int>): Int? =
+            (1..TOTAL_QUESTION_COUNT).firstOrNull { it !in answeredQuestionNumbers }
+    }
 }
