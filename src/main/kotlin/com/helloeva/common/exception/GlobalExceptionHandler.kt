@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.HandlerMethodValidationException
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.support.MissingServletRequestPartException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 
@@ -48,6 +49,12 @@ class GlobalExceptionHandler {
     fun handleMissingParameter(e: Exception, request: HttpServletRequest): ResponseEntity<ErrorResponse> {
         log.warn("[Missing Parameter] {} {}, message={}", request.method, request.requestURI, e.message)
         return toResponse(ErrorResponse.of(ErrorCode.MISSING_REQUEST_PARAMETER))
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleMaxUploadSize(e: MaxUploadSizeExceededException, request: HttpServletRequest): ResponseEntity<ErrorResponse> {
+        log.warn("[Upload Too Large] {} {}", request.method, request.requestURI)
+        return toResponse(ErrorResponse.of(ErrorCode.INVALID_AUDIO_FILE))
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException::class)

@@ -29,14 +29,15 @@ com.helloeva
 ├── domain/        # 비즈니스 도메인. 도메인마다 아래 4개 레이어
 │   └── <domain>/
 │       ├── presentation/    # Controller, Request/Response DTO
-│       ├── application/     # Service, Reader/Creator/Updater/Deleter, Command
+│       ├── application/     # Service, Reader/Creator/Updater/Deleter, Validator, Command
 │       ├── domain/          # Entity, Enum, 도메인 규칙
 │       └── infrastructure/  # Repository
 └── integration/   # 외부 연동 (oauth, ai, storage ...). 인터페이스 + 구현체
 ```
 
 - Service는 흐름만 조합하고, 실제 조회·변경은 `XxxReader`, `XxxCreator`, `XxxUpdater`, `XxxDeleter`에 둡니다.
-- 도메인 규칙(상태 전이, 검증, 소유자 확인)은 엔티티 메서드에 둡니다.
+- 엔티티 자기 데이터만으로 판단하는 규칙(상태 전이, 다시 듣기 횟수 등)은 엔티티 메서드에 둡니다.
+- 소유자 확인과 다른 데이터를 조회해야 하는 검증(문항 차례 등)은 application의 `XxxValidator`에 둡니다.
 - 외부 서비스(AI, Kakao, 스토리지)는 `integration/`의 인터페이스 뒤에 숨깁니다. 도메인은 구현체를 모릅니다.
 - AI 작업(질문 생성, 음성 인식·합성, 평가)은 요청 안에서 동기로 처리합니다. 상태 관리·비동기 처리·폴링은 두지 않습니다 (전공 프로젝트 규모).
 - 외부 API 호출은 DB 트랜잭션 밖에서 하고, 결과 저장만 짧은 트랜잭션으로 묶습니다.

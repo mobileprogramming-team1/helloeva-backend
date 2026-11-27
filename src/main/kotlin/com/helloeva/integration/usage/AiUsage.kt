@@ -5,6 +5,7 @@ data class AiUsage(
     val model: String,
     val inputUnits: Long,
     val outputUnits: Long,
+    val audioInputUnits: Long = 0,
 )
 
 enum class AiUsageType(val description: String) {
@@ -12,5 +13,5 @@ enum class AiUsageType(val description: String) {
     ANSWER_EVALUATION("답변 평가 (입력·출력 토큰)"),
     OVERALL_EVALUATION("종합 평가 (입력·출력 토큰)"),
     TEXT_TO_SPEECH("음성 합성 (입력 글자 수)"),
-    SPEECH_TO_TEXT("음성 인식 (입력 초)"),
+    SPEECH_TO_TEXT("음성 인식 (입력·출력 토큰, 입력 중 오디오 토큰 별도 단가)"),
 }

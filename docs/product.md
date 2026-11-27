@@ -65,7 +65,7 @@ flowchart LR
 ## 결정된 것
 
 - 질문 생성 방식: 대화를 만들 때마다 AI(Gemini)로 생성
-- AI 제공자: 질문 생성·평가 Gemini(Vertex AI), 음성 합성 Cloud Text-to-Speech, 음성 인식 Cloud Speech-to-Text
+- AI 제공자: 질문 생성·답변 평가·음성 인식(받아쓰기) Gemini(Vertex AI), 음성 합성 Cloud Text-to-Speech
 - 음성 파일 저장소: Google Cloud Storage (공개 읽기)
 
 ## 아직 정하지 않은 것

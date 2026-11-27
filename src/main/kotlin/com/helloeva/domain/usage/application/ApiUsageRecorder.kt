@@ -32,16 +32,12 @@ class ApiUsageRecorder(
 
     fun calculateCost(usage: AiUsage): BigDecimal =
         when (usage.type) {
-            AiUsageType.QUESTION_GENERATION,
-            AiUsageType.ANSWER_EVALUATION,
-            AiUsageType.OVERALL_EVALUATION,
-            -> perMillion(usage.inputUnits, pricing.geminiInputPerMillionTokens) +
-                perMillion(usage.outputUnits, pricing.geminiOutputPerMillionTokens)
-
             AiUsageType.TEXT_TO_SPEECH -> perMillion(usage.inputUnits, pricing.ttsPerMillionCharacters)
 
-            AiUsageType.SPEECH_TO_TEXT ->
-                BigDecimal(usage.inputUnits).multiply(pricing.sttPerMinute).divide(SECONDS_PER_MINUTE, SCALE, RoundingMode.HALF_UP)
+            else ->
+                perMillion(usage.inputUnits - usage.audioInputUnits, pricing.geminiInputPerMillionTokens) +
+                    perMillion(usage.audioInputUnits, pricing.geminiAudioInputPerMillionTokens) +
+                    perMillion(usage.outputUnits, pricing.geminiOutputPerMillionTokens)
         }.setScale(SCALE, RoundingMode.HALF_UP)
 
     private fun perMillion(units: Long, price: BigDecimal): BigDecimal =
@@ -50,6 +46,5 @@ class ApiUsageRecorder(
     companion object {
         private const val SCALE = 8
         private val MILLION = BigDecimal(1_000_000)
-        private val SECONDS_PER_MINUTE = BigDecimal(60)
     }
 }

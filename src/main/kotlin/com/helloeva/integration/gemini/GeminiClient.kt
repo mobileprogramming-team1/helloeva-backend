@@ -1,7 +1,10 @@
 package com.helloeva.integration.gemini
 
 import com.google.genai.Client
+import com.google.genai.types.Content
 import com.google.genai.types.GenerateContentConfig
+import com.google.genai.types.MediaModality
+import com.google.genai.types.Part
 import com.google.genai.types.Schema
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -22,7 +25,13 @@ class GeminiClient(
         Client.builder().vertexAI(true).project(projectId).location(location).build()
     }
 
-    fun generateJson(prompt: String, schema: Schema, temperature: Float): GeminiResult {
+    fun generateJson(prompt: String, schema: Schema, temperature: Float): GeminiResult =
+        generate(Content.fromParts(Part.fromText(prompt)), schema, temperature)
+
+    fun generateJsonFromAudio(prompt: String, audio: ByteArray, mimeType: String, schema: Schema, temperature: Float): GeminiResult =
+        generate(Content.fromParts(Part.fromBytes(audio, mimeType), Part.fromText(prompt)), schema, temperature)
+
+    private fun generate(content: Content, schema: Schema, temperature: Float): GeminiResult {
         val config = GenerateContentConfig.builder()
             .responseMimeType("application/json")
             .responseSchema(schema)
@@ -32,11 +41,16 @@ class GeminiClient(
         var lastError: Exception? = null
         repeat(MAX_ATTEMPTS) { attempt ->
             try {
-                val response = client.models.generateContent(model, prompt, config)
+                val response = client.models.generateContent(model, content, config)
                 val usage = response.usageMetadata().orElse(null)
+                val audioTokens = usage?.promptTokensDetails()?.orElse(null)
+                    ?.filter { it.modality().orElse(null)?.knownEnum() == MediaModality.Known.AUDIO }
+                    ?.sumOf { it.tokenCount().orElse(0) }
+                    ?: 0
                 return GeminiResult(
                     text = response.text() ?: throw IllegalStateException("Gemini 응답이 비어 있습니다."),
                     inputTokens = usage?.promptTokenCount()?.orElse(0)?.toLong() ?: 0,
+                    audioInputTokens = audioTokens.toLong(),
                     outputTokens = ((usage?.candidatesTokenCount()?.orElse(0) ?: 0) +
                         (usage?.thoughtsTokenCount()?.orElse(0) ?: 0)).toLong(),
                 )
@@ -56,5 +70,6 @@ class GeminiClient(
 data class GeminiResult(
     val text: String,
     val inputTokens: Long,
+    val audioInputTokens: Long,
     val outputTokens: Long,
 )
