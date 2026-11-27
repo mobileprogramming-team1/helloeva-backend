@@ -1,7 +1,9 @@
 package com.helloeva.integration
 
 import com.helloeva.integration.evaluation.application.AnswerEvaluator
+import com.helloeva.integration.evaluation.application.OverallEvaluator
 import com.helloeva.integration.fake.FakeAnswerEvaluator
+import com.helloeva.integration.fake.FakeOverallEvaluator
 import com.helloeva.integration.fake.FakeFileStorage
 import com.helloeva.integration.fake.FakeOauthClient
 import com.helloeva.integration.fake.FakeQuestionGenerator
@@ -48,4 +50,8 @@ class TestcontainersConfig {
     @Bean
     @Primary
     fun fakeAnswerEvaluator(): AnswerEvaluator = FakeAnswerEvaluator()
+
+    @Bean
+    @Primary
+    fun fakeOverallEvaluator(): OverallEvaluator = FakeOverallEvaluator()
 }

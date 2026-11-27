@@ -4,6 +4,9 @@ import com.helloeva.domain.conversation.domain.Grade
 import com.helloeva.domain.survey.domain.BackgroundSurvey
 import com.helloeva.integration.evaluation.application.AnswerEvaluation
 import com.helloeva.integration.evaluation.application.AnswerEvaluator
+import com.helloeva.integration.evaluation.application.AnsweredQuestion
+import com.helloeva.integration.evaluation.application.OverallEvaluation
+import com.helloeva.integration.evaluation.application.OverallEvaluator
 import com.helloeva.integration.question.application.GeneratedQuestions
 import com.helloeva.integration.question.application.QuestionGenerator
 import com.helloeva.integration.speech.application.SpeechToText
@@ -54,6 +57,23 @@ class FakeAnswerEvaluator : AnswerEvaluator {
             recommendedScript = "I usually take a slow walk in the park, which helps me unwind.",
             keyExpressions = listOf("slow walk", "unwind"),
             usage = AiUsage(AiUsageType.ANSWER_EVALUATION, "fake-model", 300, 200),
+        )
+}
+
+class FakeOverallEvaluator : OverallEvaluator {
+    override fun evaluate(targetGrade: Grade, answers: List<AnsweredQuestion>): OverallEvaluation =
+        OverallEvaluation(
+            overallEstimatedGrade = Grade.IM3,
+            fluency = 70,
+            vocabulary = 65,
+            grammar = 60,
+            organization = 75,
+            strengths = listOf("질문에 맞는 답변을 끝까지 이어 말했어요.", "일상 주제에서 어휘가 자연스러웠어요."),
+            weaknesses = listOf("시제 일치가 아직 불안정해요.", "같은 표현을 반복해요."),
+            recommendedStudies = listOf("연결어 표현 정리하기", "주제별 핵심 표현 10개씩 정리하기"),
+            frequentExpressions = listOf("very", "a lot", "really"),
+            closingMessage = "오늘 정말 고생 많았어요. 다음 모의고사에서 또 만나요!",
+            usage = AiUsage(AiUsageType.OVERALL_EVALUATION, "fake-model", 3000, 500),
         )
 }
 

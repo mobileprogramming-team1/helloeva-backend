@@ -17,6 +17,12 @@ class ConversationValidator(
         }
     }
 
+    fun validateAllAnswered(conversationId: Long) {
+        if (conversationReader.findCurrentQuestionNumber(conversationId) != null) {
+            throw CustomException(ErrorCode.QUESTIONS_NOT_ALL_ANSWERED)
+        }
+    }
+
     fun validateCurrentTurn(conversationId: Long, questionNumber: Int) {
         val answeredNumbers = conversationReader.findAnsweredQuestionNumbers(conversationId)
         if (questionNumber in answeredNumbers) {
